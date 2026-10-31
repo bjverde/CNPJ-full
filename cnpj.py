@@ -19,6 +19,7 @@ import sys
 import csv
 import zipfile
 import datetime
+import warnings
 
 import pandas as pd
 
@@ -242,18 +243,56 @@ def lista_arquivos(input_list):
     return arquivos
 
 
-def le_arquivo(tabela, caminho, membro):
-    '''Gerador de DataFrames (em blocos) de um arquivo da RF.'''
+class ContaLinhas:
+    '''Envolve o arquivo lido pelo pandas e conta as quebras de linha,
+    para conferir a quantidade de linhas fisicas sem ler o arquivo duas vezes.'''
+    def __init__(self, handle):
+        self.handle = handle
+        self.quebras = 0
+        self.ultimo_byte = b''
+
+    def read(self, n=-1):
+        dados = self.handle.read(n)
+        if dados:
+            self.quebras += dados.count(b'\n')
+            self.ultimo_byte = dados[-1:]
+        return dados
+
+    def readable(self):
+        return True
+
+    def close(self):
+        self.handle.close()
+
+    def linhas(self):
+        # Ultima linha sem quebra no final tambem conta
+        if self.ultimo_byte and self.ultimo_byte != b'\n':
+            return self.quebras + 1
+        return self.quebras
+
+
+def novas_estatisticas():
+    return {'linhas_arquivo': 0, 'registros_lidos': 0, 'registros_descartados': 0}
+
+
+def le_arquivo(tabela, caminho, membro, estatisticas=None):
+    '''Gerador de DataFrames (em blocos) de um arquivo da RF.
+    Se estatisticas (dict) for informado, preenche as quantidades de linhas
+    do arquivo, de registros lidos e de linhas descartadas por estarem mal
+    formadas (com mais campos do que o layout).'''
     nomes = [c[0] for c in COLUNAS[tabela]]
+    if estatisticas is None:
+        estatisticas = novas_estatisticas()
 
     if membro is None:
         handle = open(caminho, 'rb')
     else:
         zf = zipfile.ZipFile(caminho)
         handle = zf.open(membro)
+    contador = ContaLinhas(handle)
 
     try:
-        leitor = pd.read_csv(handle,
+        leitor = pd.read_csv(contador,
                              sep=';',
                              header=None,
                              names=nomes,
@@ -265,12 +304,75 @@ def le_arquivo(tabela, caminho, membro):
                              encoding_errors='replace',
                              on_bad_lines='warn',
                              chunksize=CHUNKSIZE)
-        for bloco in leitor:
+        while True:
+            # Captura os avisos de linhas descartadas para conta-las
+            with warnings.catch_warnings(record=True) as avisos:
+                warnings.simplefilter('always', pd.errors.ParserWarning)
+                try:
+                    bloco = next(leitor)
+                except StopIteration:
+                    bloco = None
+
+            for aviso in avisos:
+                mensagem = str(aviso.message)
+                if issubclass(aviso.category, pd.errors.ParserWarning):
+                    estatisticas['registros_descartados'] += len(re.findall(r'Skipping line', mensagem))
+                print('\nAVISO: {}'.format(mensagem.strip()), file=sys.stderr)
+
+            if bloco is None:
+                break
+
+            estatisticas['registros_lidos'] += len(bloco)
             yield trata_bloco(tabela, bloco)
+
+        estatisticas['linhas_arquivo'] = contador.linhas()
     finally:
-        handle.close()
+        contador.close()
         if membro is not None:
             zf.close()
+
+
+def avalia_estatisticas(est):
+    '''Retorna (status, observacao) comparando as quantidades de um arquivo.'''
+    problemas = []
+    if est['registros_gravados'] != est['registros_lidos']:
+        problemas.append('{} registros lidos, mas {} gravados'.format(
+            est['registros_lidos'], est['registros_gravados']))
+    if est['registros_descartados'] > 0:
+        problemas.append('{} linhas mal formadas descartadas'.format(est['registros_descartados']))
+    diferenca = est['linhas_arquivo'] - est['registros_lidos'] - est['registros_descartados']
+    if diferenca != 0:
+        problemas.append('{} linhas no arquivo, {} lidas + descartadas (diferenca de {}; '
+                         'pode ser quebra de linha dentro de um campo)'.format(
+                             est['linhas_arquivo'],
+                             est['registros_lidos'] + est['registros_descartados'],
+                             diferenca))
+    if problemas:
+        return 'DIVERGENTE', '; '.join(problemas)
+    return 'OK', ''
+
+
+def imprime_verificacao(linhas):
+    '''Imprime o resumo da verificacao. linhas: lista de dicts com tabela,
+    arquivo, membro, linhas_arquivo, registros_lidos, registros_descartados,
+    registros_gravados, status e observacao.'''
+    print(u'\nVerificacao das quantidades por arquivo:')
+    print(u'  {:<8} {:>12} {:>12} {:>11} {:>12}  {:<16} {}'.format(
+        'status', 'linhas arq.', 'lidos', 'descartados', 'gravados', 'tabela', 'arquivo'))
+    for l in linhas:
+        print(u'  {:<8} {:>12} {:>12} {:>11} {:>12}  {:<16} {}{}'.format(
+            'OK' if l['status'] == 'OK' else 'DIVERG.',
+            l['linhas_arquivo'], l['registros_lidos'], l['registros_descartados'],
+            l['registros_gravados'], l['tabela'], l['arquivo'],
+            ' [{}]'.format(l['membro']) if l['membro'] else ''))
+
+    divergentes = [l for l in linhas if l['status'] != 'OK']
+    if divergentes:
+        print(u'\nATENCAO! {} arquivo(s) com divergencia:'.format(len(divergentes)))
+        for l in divergentes:
+            print(u'  {}: {}'.format(l['arquivo'], l['observacao']))
+    else:
+        print(u'\nTodos os arquivos conferem.')
 
 
 def trata_bloco(tabela, df):
@@ -317,7 +419,12 @@ def cria_tabelas_sqlite(conBD, tabelas):
                         arquivo TEXT,
                         membro TEXT,
                         modo TEXT,
-                        registros INTEGER,
+                        linhas_arquivo INTEGER,
+                        registros_lidos INTEGER,
+                        registros_descartados INTEGER,
+                        registros_gravados INTEGER,
+                        status TEXT,
+                        observacao TEXT,
                         inicio TEXT,
                         fim TEXT)'''.format(CONTROLE))
     conBD.execute('COMMIT')
@@ -363,7 +470,7 @@ corrompido. Rode a carga do zero (sem --continuar), de preferencia com --seguro.
     concluidos = set()
     totais = {t: 0 for t in tabelas}
     for tabela, arquivo, membro, registros in conBD.execute(
-            'SELECT tabela, arquivo, membro, registros FROM {}'.format(CONTROLE)):
+            'SELECT tabela, arquivo, membro, registros_gravados FROM {}'.format(CONTROLE)):
         concluidos.add((arquivo, membro))
         if tabela in totais:
             totais[tabela] += registros
@@ -377,8 +484,8 @@ def grava_arquivo_sqlite(conBD, tabela, caminho, membro, modo, totais):
 
     # Registra o inicio antes da transacao do arquivo, para saber depois
     # se ele foi interrompido no meio.
-    conBD.execute('INSERT INTO {} (tabela, arquivo, membro, modo, inicio) '
-                  'VALUES (?, ?, ?, ?, ?)'.format(CONTROLE),
+    conBD.execute("INSERT INTO {} (tabela, arquivo, membro, modo, status, inicio) "
+                  "VALUES (?, ?, ?, ?, 'EM ANDAMENTO', ?)".format(CONTROLE),
                   (tabela, arquivo, nome_membro, modo, agora()))
     id_controle = conBD.execute('SELECT last_insert_rowid()').fetchone()[0]
 
@@ -386,19 +493,32 @@ def grava_arquivo_sqlite(conBD, tabela, caminho, membro, modo, totais):
     sql_insert = 'INSERT INTO {} ({}) VALUES ({})'.format(
         tabela, ', '.join(nomes), ', '.join('?' * len(nomes)))
 
-    registros = 0
+    # Os registros deste arquivo sao os de rowid acima do maior atual
+    rowid_inicial = conBD.execute(
+        'SELECT COALESCE(MAX(rowid), 0) FROM {}'.format(tabela)).fetchone()[0]
+
+    est = novas_estatisticas()
     conBD.execute('BEGIN')
     try:
-        for i_bloco, df in enumerate(le_arquivo(tabela, caminho, membro)):
+        for i_bloco, df in enumerate(le_arquivo(tabela, caminho, membro, est)):
             linhas = df.astype(object).where(df.notna(), None).itertuples(index=False, name=None)
             conBD.executemany(sql_insert, linhas)
 
-            registros += len(df)
             print('Bloco {}: {} registros de {} ate agora.'.format(
-                i_bloco + 1, totais[tabela] + registros, tabela), end='\r')
+                i_bloco + 1, totais[tabela] + est['registros_lidos'], tabela), end='\r')
 
-        conBD.execute('UPDATE {} SET registros = ?, fim = ? WHERE rowid = ?'.format(CONTROLE),
-                      (registros, agora(), id_controle))
+        # Confere no banco quantos registros deste arquivo foram gravados
+        est['registros_gravados'] = conBD.execute(
+            'SELECT COUNT(*) FROM {} WHERE rowid > ?'.format(tabela),
+            (rowid_inicial,)).fetchone()[0]
+        status, observacao = avalia_estatisticas(est)
+
+        conBD.execute('UPDATE {} SET linhas_arquivo = ?, registros_lidos = ?, '
+                      'registros_descartados = ?, registros_gravados = ?, '
+                      'status = ?, observacao = ?, fim = ? WHERE rowid = ?'.format(CONTROLE),
+                      (est['linhas_arquivo'], est['registros_lidos'],
+                       est['registros_descartados'], est['registros_gravados'],
+                       status, observacao, agora(), id_controle))
         conBD.execute('COMMIT')
     except BaseException:
         # No modo rapido (sem journal) o SQLite nao consegue desfazer a
@@ -408,12 +528,21 @@ def grava_arquivo_sqlite(conBD, tabela, caminho, membro, modo, totais):
             conBD.execute('ROLLBACK')
         raise
 
-    totais[tabela] += registros
+    totais[tabela] += est['registros_gravados']
+
+
+def verificacao_sqlite(conBD):
+    colunas = ['tabela', 'arquivo', 'membro', 'linhas_arquivo', 'registros_lidos',
+               'registros_descartados', 'registros_gravados', 'status', 'observacao']
+    cursor = conBD.execute('SELECT {} FROM {} ORDER BY rowid'.format(', '.join(colunas), CONTROLE))
+    return [dict(zip(colunas, linha)) for linha in cursor]
 
 
 def grava_arquivo_csv(output_path, tabela, caminho, membro, totais, csv_iniciados):
     nome_arquivo_csv = os.path.join(output_path, tabela + '.csv')
-    for i_bloco, df in enumerate(le_arquivo(tabela, caminho, membro)):
+    est = novas_estatisticas()
+    est['registros_gravados'] = 0
+    for i_bloco, df in enumerate(le_arquivo(tabela, caminho, membro, est)):
         primeiro = tabela not in csv_iniciados
         df.to_csv(nome_arquivo_csv,
                   header=primeiro,
@@ -421,10 +550,17 @@ def grava_arquivo_csv(output_path, tabela, caminho, membro, totais, csv_iniciado
                   index=False,
                   quoting=csv.QUOTE_NONNUMERIC)
         csv_iniciados.add(tabela)
+        est['registros_gravados'] += len(df)
 
-        totais[tabela] += len(df)
         print('Bloco {}: {} registros de {} ate agora.'.format(
-            i_bloco + 1, totais[tabela], tabela), end='\r')
+            i_bloco + 1, totais[tabela] + est['registros_gravados'], tabela), end='\r')
+
+    totais[tabela] += est['registros_gravados']
+
+    arquivo, nome_membro = id_arquivo(caminho, membro)
+    est['status'], est['observacao'] = avalia_estatisticas(est)
+    est.update(tabela=tabela, arquivo=arquivo, membro=nome_membro)
+    return est
 
 
 def cnpj_full(input_list, tipo_output, output_path, modo=MODO_RAPIDO, continuar=False):
@@ -442,6 +578,7 @@ def cnpj_full(input_list, tipo_output, output_path, modo=MODO_RAPIDO, continuar=
     totais = {t: 0 for t in tabelas}
     concluidos = set()
     csv_iniciados = set()
+    verificacao_csv = []
 
     if tipo_output == 'sqlite':
         print(u'Modo de gravacao: {}'.format(modo))
@@ -461,13 +598,17 @@ def cnpj_full(input_list, tipo_output, output_path, modo=MODO_RAPIDO, continuar=
         print('Processando arquivo: {}'.format(descricao))
 
         if tipo_output == 'csv':
-            grava_arquivo_csv(output_path, tabela, caminho, membro, totais, csv_iniciados)
+            verificacao_csv.append(
+                grava_arquivo_csv(output_path, tabela, caminho, membro, totais, csv_iniciados))
         elif tipo_output == 'sqlite':
             grava_arquivo_sqlite(conBD, tabela, caminho, membro, modo, totais)
         print()
 
     if tipo_output == 'sqlite':
+        imprime_verificacao(verificacao_sqlite(conBD))
         fecha_sqlite(conBD)
+    else:
+        imprime_verificacao(verificacao_csv)
 
     print('\nConversao concluida. Total de registros por tabela:')
     for tabela in tabelas:

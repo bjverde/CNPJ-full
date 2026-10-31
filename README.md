@@ -73,7 +73,7 @@ O script informa no terminal o parcial do processamento de cada arquivo, em bloc
 
 ## Modo rápido x modo seguro (saída sqlite)
 
-Cada arquivo da RF (ex: `Estabelecimentos3.zip`) é gravado em uma única transação e, ao terminar, registrado na tabela `controle_carga` (arquivo, tabela, quantidade de registros, modo, início e fim).
+Cada arquivo da RF (ex: `Estabelecimentos3.zip`) é gravado em uma única transação e, ao terminar, registrado na tabela `controle_carga`, que também serve de verificação das quantidades (veja [Verificação da carga](#verificação-da-carga)).
 
 Modo | Como ativar | Como grava | Vantagens | Desvantagens
 ---- | ----------- | ---------- | --------- | ------------
@@ -91,6 +91,29 @@ Use o modo rápido quando a máquina for estável e você puder simplesmente rod
 Com `--continuar`, o script não recria as tabelas e pula os arquivos já concluídos na `controle_carga`. O arquivo que estava sendo gravado na interrupção é carregado de novo desde o início.
 
 Se a carga interrompida estava no modo rápido, o `--continuar` recusa retomar, porque a gravação parcial não pode ser desfeita. Nesse caso, rode a carga do zero.
+
+## Verificação da carga
+
+Como os CSVs novos da RF não trazem um total de registros, o script confere cada arquivo com três contagens independentes:
+
+Coluna da `controle_carga` | O que conta
+-------------------------- | -----------
+`linhas_arquivo` | Linhas físicas do arquivo (quebras de linha), contadas durante a própria leitura
+`registros_lidos` | Registros interpretados pelo leitor de CSV
+`registros_descartados` | Linhas mal formadas (com mais campos que o layout) que foram ignoradas
+`registros_gravados` | Registros deste arquivo efetivamente gravados no banco, contados com `SELECT COUNT(*)` antes do commit
+
+O `status` fica `OK` quando `registros_gravados = registros_lidos`, não há descartados e `registros_lidos + registros_descartados = linhas_arquivo`. Caso contrário, fica `DIVERGENTE`, e a coluna `observacao` explica o motivo. Uma divergência é um aviso para investigar e não interrompe a carga. Por exemplo, um campo com quebra de linha dentro das aspas conta como 2 linhas físicas e 1 registro.
+
+Ao final da carga é impresso um resumo com o status de cada arquivo. A qualquer momento, também é possível consultar:
+
+```sql
+SELECT arquivo, tabela, linhas_arquivo, registros_lidos, registros_descartados,
+       registros_gravados, status, observacao
+FROM controle_carga;
+```
+
+Na saída csv a mesma verificação é feita e impressa no resumo, mas não é gravada em tabela.
 
 ## Como executar
 `python3 cnpj.py <caminho entrada> <tipo de saída:csv ou sqlite> <pasta saída> [--dir] [--noindex] [--seguro] [--continuar]`
