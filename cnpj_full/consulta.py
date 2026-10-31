@@ -7,8 +7,16 @@ import pandas as pd
 import sqlite3
 import networkx as nx
 
-import config
-from rede_cnpj import RedeCNPJ
+# Funciona tanto como script (python3 cnpj_full/consulta.py) quanto como
+# modulo do pacote (python3 -m cnpj_full.consulta ou import nos testes)
+if __package__:
+    from . import config
+    from .rede_cnpj import RedeCNPJ
+else:
+    import config
+    from rede_cnpj import RedeCNPJ
+
+PATH_TEMPLATE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'viz', 'template.html')
 
 def consulta(tipo_consulta, objeto_consulta, qualificacoes, path_BD, nivel_max, path_output, 
              csv=False, colunas_csv=None, csv_sep=',', graphml=False, gexf=False, viz=False, 
@@ -65,7 +73,7 @@ def consulta(tipo_consulta, objeto_consulta, qualificacoes, path_BD, nivel_max, 
 
             if viz:
                 try:
-                    with open('viz/template.html', 'r', encoding='utf-8') as template:
+                    with open(PATH_TEMPLATE, 'r', encoding='utf-8') as template:
                         str_html = template.read().replace('<!--GRAFO-->', json.dumps(rede.json()))
                         
                     path_html = os.path.join(path_output, 'grafo.html')

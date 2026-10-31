@@ -9,7 +9,7 @@ RAIZ = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, RAIZ)
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-import cnpj  # noqa: E402
+from cnpj_full import cnpj  # noqa: E402
 from amostra import gera_amostra  # noqa: E402
 
 

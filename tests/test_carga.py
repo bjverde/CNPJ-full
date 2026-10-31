@@ -4,7 +4,7 @@ import sqlite3
 import pandas as pd
 import pytest
 
-import cnpj
+from cnpj_full import cnpj
 from amostra import gera_amostra
 from conftest import carrega
 
