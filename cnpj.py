@@ -159,6 +159,32 @@ ENCODING = 'latin-1'
 
 NOME_ARQUIVO_SQLITE = 'CNPJ_full.db'
 
+# Configuracoes do SQLite usadas durante a carga e a criacao de indices.
+# Sem journal e sem sync em disco, a gravacao fica bem mais rapida, mas se o
+# processo for interrompido o arquivo pode ficar corrompido. Nesse caso basta
+# rodar a carga de novo (as tabelas sao recriadas do zero).
+PRAGMAS_CARGA = [
+    'journal_mode = OFF',
+    'synchronous = OFF',
+    'locking_mode = EXCLUSIVE',
+    'cache_size = -262144',  # 256 MB de cache de paginas
+]
+
+
+def conecta_sqlite(output_path):
+    import sqlite3
+    conBD = sqlite3.connect(os.path.join(output_path, NOME_ARQUIVO_SQLITE))
+    for pragma in PRAGMAS_CARGA:
+        conBD.execute('PRAGMA ' + pragma)
+    return conBD
+
+
+def fecha_sqlite(conBD):
+    # Volta o journal ao modo padrao para o uso normal do banco (consultas)
+    conBD.commit()
+    conBD.execute('PRAGMA journal_mode = DELETE')
+    conBD.close()
+
 
 def identifica_tabela(nome):
     nome = os.path.basename(nome).upper()
@@ -279,8 +305,7 @@ def cnpj_full(input_list, tipo_output, output_path):
     tabelas = sorted(set(a[0] for a in arquivos), key=ORDEM_TABELAS.index)
 
     if tipo_output == 'sqlite':
-        import sqlite3
-        conBD = sqlite3.connect(os.path.join(output_path, NOME_ARQUIVO_SQLITE))
+        conBD = conecta_sqlite(output_path)
         cria_tabelas_sqlite(conBD, tabelas)
 
     totais = {t: 0 for t in tabelas}
@@ -310,8 +335,7 @@ def cnpj_full(input_list, tipo_output, output_path):
         print()
 
     if tipo_output == 'sqlite':
-        conBD.commit()
-        conBD.close()
+        fecha_sqlite(conBD)
 
     print('\nConversao concluida. Total de registros por tabela:')
     for tabela in tabelas:
@@ -328,9 +352,7 @@ OBS: Uso de índices altamente recomendado!
 
 
 def cnpj_index(output_path):
-    import sqlite3
-
-    conBD = sqlite3.connect(os.path.join(output_path, NOME_ARQUIVO_SQLITE))
+    conBD = conecta_sqlite(output_path)
 
     print(u'''
 Criando índices...
@@ -354,7 +376,7 @@ Essa operaçao pode levar vários minutos.
 
     print(u'Indices criados com sucesso.')
 
-    conBD.close()
+    fecha_sqlite(conBD)
 
 
 def help():

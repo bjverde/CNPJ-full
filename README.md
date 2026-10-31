@@ -69,7 +69,7 @@ O [Pandas](https://pandas.pydata.org) usa. É uma extensão que melhora a veloci
 Atente para o fato de que os arquivos disponibilizados pela RF são muito grandes (dezenas de GB descomprimidos).
 Portanto, é bastante provável que seu computador dedique tempo considerável a essa execução.
 
-O script informa no terminal o parcial do processamento de cada arquivo, em blocos de 200.000 linhas. O tipo de cada arquivo é identificado pelo nome (ex: `...EMPRECSV`, `...ESTABELE`, `...SOCIOCSV` ou `Empresas0.zip`), então os ZIPs podem ser lidos diretamente, sem descompactar.
+O script informa no terminal o parcial do processamento de cada arquivo, em blocos de 200.000 linhas. Durante a carga o SQLite roda sem journal e sem sincronização em disco (`PRAGMA journal_mode=OFF`, `synchronous=OFF`), o que acelera a gravação. Se o processo for interrompido, o arquivo pode ficar corrompido: basta rodar a carga de novo, já que as tabelas são recriadas do zero. O tipo de cada arquivo é identificado pelo nome (ex: `...EMPRECSV`, `...ESTABELE`, `...SOCIOCSV` ou `Empresas0.zip`), então os ZIPs podem ser lidos diretamente, sem descompactar.
 
 ## Como executar
 `python3 cnpj.py <caminho entrada> <tipo de saída:csv ou sqlite> <pasta saída> [--dir] [--noindex]`
