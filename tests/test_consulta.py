@@ -4,10 +4,8 @@ import json
 import pandas as pd
 import pytest
 
-import config
-import consulta
-from rede_cnpj import RedeCNPJ
-from conftest import RAIZ
+from cnpj_full import config, consulta
+from cnpj_full.rede_cnpj import RedeCNPJ
 
 
 @pytest.fixture
@@ -58,8 +56,8 @@ def test_empresa_inexistente(rede):
 
 
 def test_consulta_gera_saidas(zips, banco, tmp_path, monkeypatch):
-    # o template de visualizacao e lido com caminho relativo a raiz do projeto
-    monkeypatch.chdir(RAIZ)
+    # roda de outra pasta para garantir que o template e achado pelo caminho do modulo
+    monkeypatch.chdir(str(tmp_path))
     caminho_bd = banco.execute('PRAGMA database_list').fetchone()[2]
     saida = str(tmp_path / 'resultado')
 
