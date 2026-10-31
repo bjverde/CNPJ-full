@@ -1,24 +1,111 @@
-# Dados Públicos CNPJ - Conversão para CSV/SQLITE e Consultas
-Utilitário em Python para carregar a base completa de CNPJ [disponibilizada pela Receita Federal](https://dados.gov.br/dados/conjuntos-dados/cadastro-nacional-da-pessoa-juridica---cnpj) e transformá-la em arquivos csv ou sqlite para fácil consumo. Processa dados de empresas, estabelecimentos, sócios, Simples/MEI e tabelas de domínio (CNAEs, municípios, países, naturezas jurídicas, qualificações e motivos).
-Possibilita também fazer consultas de empresas ou sócios e gravar resultados em CSV ou em grafo de relacionamentos.
+# Dados Públicos CNPJ - Conversão para CSV/SQLite e Consultas
+
+[![Testes](https://github.com/bjverde/CNPJ-full/actions/workflows/testes.yml/badge.svg)](https://github.com/bjverde/CNPJ-full/actions/workflows/testes.yml)
+
+Utilitário em Python para carregar a base completa de CNPJ [disponibilizada pela Receita Federal](https://dados.gov.br/dados/conjuntos-dados/cadastro-nacional-da-pessoa-juridica---cnpj) (RF) e transformá-la em um banco SQLite ou em arquivos CSV tratados. Processa empresas, estabelecimentos, sócios, Simples/MEI e as tabelas de domínio (CNAEs, municípios, países, naturezas jurídicas, qualificações e motivos).
+
+Também permite consultar empresas ou sócios e gerar a rede de relacionamentos em CSV ou em grafo (GraphML, GEXF ou HTML interativo).
 
 ![Grafo](img/grafo.png?raw=true "Grafo")
 
-**Layout novo (a partir de março de 2021)**
+Projeto irmão: o [cnpjrfb](https://github.com/bjverde/cnpjrfb) é um sistema web em PHP para consultar esses dados. Os dois usam o mesmo modelo de banco ([`modelo_banco`](https://github.com/bjverde/cnpjrfb/tree/master/modelo_banco)), com scripts para MySQL/MariaDB, PostgreSQL, SQLite, SQL Server e Oracle.
 
-A Receita Federal passou a disponibilizar os dados em vários arquivos ZIP, cada um com um CSV sem cabeçalho, separado por `;` e em encoding latin-1. Os scripts deste repositório foram atualizados para esse layout, conforme o dicionário de dados da RF (`cnpj-metadados.pdf`).
+## Sumário
 
-Os nomes de tabelas e colunas gerados seguem o modelo de banco do projeto [cnpjrfb](https://github.com/bjverde/cnpjrfb/tree/master/modelo_banco):
+* [Início rápido](#início-rápido)
+* [Instalação](#instalação)
+* [Baixando os arquivos da Receita](#baixando-os-arquivos-da-receita)
+* [Carga: conversão para SQLite ou CSV](#carga-conversão-para-sqlite-ou-csv)
+* [Consultas e grafo de relacionamentos](#consultas-e-grafo-de-relacionamentos)
+* [Separando o CSV por UF ou município](#separando-o-csv-por-uf-ou-município)
+* [Sobre o CPF dos sócios e a LGPD](#sobre-o-cpf-dos-sócios-e-a-lgpd)
+* [Testes](#testes)
+* [Roteiro](#roteiro)
 
-Tabela | Arquivos da RF | Conteúdo
------- | -------------- | --------
-`empresa` | `Empresas*.zip` | Dados da empresa (CNPJ básico, razão social, natureza jurídica, capital social, porte...)
-`estabelecimento` | `Estabelecimentos*.zip` | Matriz e filiais (CNPJ completo = `cnpj_basico` + `cnpj_ordem` + `cnpj_dv`), endereço, situação, CNAEs
-`socios` | `Socios*.zip` | Quadro societário, vinculado ao CNPJ básico
-`simples` | `Simples.zip` | Opção pelo Simples e pelo MEI
-`cnae`, `moti`, `munic`, `natju`, `pais`, `quals` | `Cnaes.zip`, `Motivos.zip`, `Municipios.zip`, `Naturezas.zip`, `Paises.zip`, `Qualificacoes.zip` | Tabelas de domínio (`codigo`, `descricao`)
+# Início rápido
 
-Tratamentos feitos na carga:
+```bash
+# 1. Instalar (Python 3.9 ou superior)
+git clone https://github.com/bjverde/CNPJ-full.git
+cd CNPJ-full
+python3 -m venv .venv
+source .venv/bin/activate          # no Windows: .venv\Scripts\activate
+pip install -r requirements.txt
+
+# 2. Baixar todos os ZIPs de um mesmo mês para a pasta "dados" (veja abaixo)
+
+# 3. Carregar no SQLite (gera saida/CNPJ_full.db, com índices)
+python3 cnpj.py dados sqlite saida --dir
+
+# 4. Consultar uma empresa e abrir o grafo no navegador
+python3 consulta.py cnpj 00000000000191 resultado --base saida/CNPJ_full.db --nivel 2 --viz
+# abra resultado/grafo.html
+```
+
+# Instalação
+
+Requisitos:
+* **Python 3.9 ou superior.** Os testes automáticos rodam em Python 3.9, 3.12 e 3.13.
+* As bibliotecas do `requirements.txt`: `pandas`, `numpy`, `numexpr`, `networkx` e `python-dotenv`.
+
+É recomendado usar um ambiente virtual, para não misturar as bibliotecas do projeto com as do sistema:
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate          # no Windows: .venv\Scripts\activate
+pip install -r requirements.txt
+```
+
+# Baixando os arquivos da Receita
+
+A RF publica os dados todo mês em `https://arquivos.receitafederal.gov.br/dados/cnpj/dados_abertos_cnpj/`, com uma pasta por competência (ex: `2026-10/`). O acesso também está no [portal dados.gov.br](https://dados.gov.br/dados/conjuntos-dados/cadastro-nacional-da-pessoa-juridica---cnpj).
+
+Baixe **todos os ZIPs da mesma competência** para uma pasta dedicada, sem renomear e sem descompactar:
+
+Arquivos | Tabela gerada | Conteúdo
+-------- | ------------- | --------
+`Empresas0.zip` a `Empresas9.zip` | `empresa` | Dados da empresa (CNPJ básico, razão social, natureza jurídica, capital social, porte...)
+`Estabelecimentos0.zip` a `Estabelecimentos9.zip` | `estabelecimento` | Matriz e filiais (CNPJ completo = `cnpj_basico` + `cnpj_ordem` + `cnpj_dv`), endereço, situação, CNAEs
+`Socios0.zip` a `Socios9.zip` | `socios` | Quadro societário, vinculado ao CNPJ básico
+`Simples.zip` | `simples` | Opção pelo Simples e pelo MEI
+`Cnaes.zip`, `Motivos.zip`, `Municipios.zip`, `Naturezas.zip`, `Paises.zip`, `Qualificacoes.zip` | `cnae`, `moti`, `munic`, `natju`, `pais`, `quals` | Tabelas de domínio (`codigo`, `descricao`)
+
+Cada ZIP contém um CSV sem cabeçalho, separado por `;`, com campos entre aspas e encoding latin-1, conforme o dicionário de dados da RF (`cnpj-metadados.pdf`). O tipo de cada arquivo é reconhecido pelo nome (ex: `...EMPRECSV`, `...ESTABELE`, `...SOCIOCSV` ou `Empresas0.zip`).
+
+São dezenas de GB descomprimidos, então reserve espaço em disco para os ZIPs e, pelo menos, o mesmo tanto para o banco gerado.
+
+# Carga: conversão para SQLite ou CSV
+
+```
+python3 cnpj.py <caminho entrada> <sqlite|csv> <pasta saída> [--dir] [--noindex] [--seguro] [--continuar]
+```
+
+Argumento | Descrição
+--------- | ---------
+`<caminho entrada>` | Pasta com os ZIPs (com `--dir`) ou um único arquivo
+`<sqlite\|csv>` | `sqlite` gera `CNPJ_full.db`; `csv` gera um CSV tratado por tabela (`empresa.csv`, `estabelecimento.csv`...)
+`<pasta saída>` | Onde os arquivos são gerados (é criada se não existir)
+`--dir` | Lê todos os ZIPs (ou CSVs já extraídos) da pasta de entrada
+`--noindex` | Só sqlite: **não** cria os índices no fim. Os índices são essenciais para as consultas
+`--seguro` | Só sqlite: grava no modo normal do SQLite (veja abaixo)
+`--continuar` | Só sqlite: retoma uma carga interrompida
+
+Exemplos:
+
+```bash
+python3 cnpj.py dados sqlite saida --dir
+python3 cnpj.py dados csv saida --dir
+python3 cnpj.py dados/Empresas0.zip sqlite saida --noindex
+python3 cnpj.py dados sqlite saida --dir --seguro
+python3 cnpj.py dados sqlite saida --dir --seguro --continuar
+```
+
+O script mostra no terminal o progresso de cada arquivo, em blocos de 200.000 linhas, e no fim um resumo da verificação das quantidades. A carga completa leva horas, dependendo do disco e do processador.
+
+Os nomes de tabelas e colunas seguem o modelo de banco do [cnpjrfb](https://github.com/bjverde/cnpjrfb/tree/master/modelo_banco).
+
+## Tratamentos feitos na carga
+
 * Datas zeradas (`0` ou `00000000`) viram vazio (NULL).
 * `capital_social` é convertido de `1000,00` para número.
 * Representante legal inexistente (`***000000**`) vira vazio.
@@ -26,190 +113,193 @@ Tratamentos feitos na carga:
 * `situacao_cadastral` e `porte_empresa` são texto de 2 dígitos (ex: `02`, `05`), como no dicionário de dados da RF e no modelo do cnpjrfb.
 * O campo `cnae_fiscal_secundaria` é mantido como no arquivo original (códigos separados por vírgula).
 
-# Conversão para CSV ou SQLITE
+## Modo rápido x modo seguro (saída sqlite)
 
-A forma recomendada de fazer a carga é: baixar todos os arquivos zip de uma mesma competência para uma pasta dedicada (sem renomear) e executar:
+Cada arquivo da RF (ex: `Estabelecimentos3.zip`) é gravado em uma única transação e, ao terminar, registrado na tabela `controle_carga`, que também serve de verificação das quantidades (veja [Verificação da carga](#verificação-da-carga)).
 
-`python3 cnpj.py PASTA_COM_ZIPS sqlite PASTA_DE_SAIDA --dir`
+Modo | Como ativar | Como grava | Vantagens | Desvantagens
+---- | ----------- | ---------- | --------- | ------------
+**Rápido** | padrão | Sem journal e sem sincronização em disco (`PRAGMA journal_mode=OFF`, `synchronous=OFF`) | Menos escrita em disco e nenhuma espera por `fsync`. A carga e a criação de índices ficam mais rápidas, principalmente em HD/SSD comum | Se o processo for interrompido (queda de energia, Ctrl+C, erro), o banco pode ficar corrompido e a carga precisa ser refeita do zero
+**Seguro** | `--seguro` | Modo normal do SQLite: journal (`journal_mode=DELETE`) e sincronização em disco a cada transação (`synchronous=FULL`) | Uma interrupção desfaz apenas o arquivo que estava sendo gravado. O banco nunca fica corrompido, e a carga pode ser retomada com `--continuar` | Mais lento: cada página é gravada duas vezes (journal + banco) e o SQLite espera o disco confirmar a gravação
 
-ou
+Em ambos os modos, ao final da carga o journal volta ao modo normal, para o uso do banco nas consultas.
 
-`python3 cnpj.py PASTA_COM_ZIPS csv PASTA_DE_SAIDA --dir`
+Use o modo rápido quando a máquina for estável e você puder simplesmente rodar de novo em caso de falha. Use o `--seguro` em máquinas sujeitas a quedas de energia ou quando a carga demorar muitas horas.
 
-## Configurações prévias
-Para executar o script, é necessário que seu sistema contenha essas instalações:
+### Retomando uma carga interrompida
 
-## Python
-Versão mais atual, caso não consiga executar usando somente o comando `python`. Para isso, execute no terminal (se estiver usando sistemas GNU/Linux derivados do Debian):
+`python3 cnpj.py PASTA_COM_ZIPS sqlite PASTA_DE_SAIDA --dir --seguro --continuar`
 
-` $ sudo apt upgrade python3`
+Com `--continuar`, o script não recria as tabelas e pula os arquivos já concluídos na `controle_carga`. O arquivo que estava sendo gravado na interrupção é carregado de novo desde o início.
 
-## Gerenciador de Pacotes do Python (Pip)
-A versão mais atual. Se estiver usando Python3:
+Se a carga interrompida estava no modo rápido, o `--continuar` recusa retomar, porque a gravação parcial não pode ser desfeita. Nesse caso, rode a carga do zero.
 
-`$ python3 -m pip install --upgrade pip`
+## Verificação da carga
 
-## Instalar Pré-Requisitos:
+Como os CSVs novos da RF não trazem um total de registros, o script confere cada arquivo com três contagens independentes:
 
-`$ pip install -r requirements.txt`
+Coluna da `controle_carga` | O que conta
+-------------------------- | -----------
+`linhas_arquivo` | Linhas físicas do arquivo (quebras de linha), contadas durante a própria leitura
+`registros_lidos` | Registros interpretados pelo leitor de CSV
+`registros_descartados` | Linhas mal formadas (com mais campos que o layout) que foram ignoradas
+`registros_gravados` | Registros deste arquivo efetivamente gravados no banco, contados com `SELECT COUNT(*)` antes do commit
 
-Esse comando instalará as seguintes bibliotecas:
+O `status` fica `OK` quando `registros_gravados = registros_lidos`, não há descartados e `registros_lidos + registros_descartados = linhas_arquivo`. Caso contrário, fica `DIVERGENTE`, e a coluna `observacao` explica o motivo. Uma divergência é um aviso para investigar e não interrompe a carga. Por exemplo, um campo com quebra de linha dentro das aspas conta como 2 linhas físicas e 1 registro.
 
-#### Pandas
-A versão mais atual da biblioteca [Pandas](https://pandas.pydata.org) para Python. 
+Ao final da carga é impresso um resumo com o status de cada arquivo. A qualquer momento, também é possível consultar:
 
-#### NumPy
-A princípio, não é necessário. O script neste repositório usa funções da biblioteca [Pandas](https://pandas.pydata.org), que utiliza uma extensão de NumPy chamada [NumExpr](#numexpr). Então, **caso** seu terminal retorne erros por ausência do pacote [NumPy](https://pypi.org/project/numpy/), esse é o motivo. 
+```sql
+SELECT arquivo, tabela, linhas_arquivo, registros_lidos, registros_descartados,
+       registros_gravados, status, observacao
+FROM controle_carga;
+```
 
-#### NumExpr
-O [Pandas](https://pandas.pydata.org) usa. É uma extensão que melhora a velocidade de análise no pacote [NumPy](#pacote-numpy).
+Na saída csv a mesma verificação é feita e impressa no resumo, mas não é gravada em tabela.
 
+## Índices
 
-## Antes de executar
-Atente para o fato de que os arquivos disponibilizados pela RF são muito grandes (dezenas de GB descomprimidos).
-Portanto, é bastante provável que seu computador dedique tempo considerável a essa execução.
+Ao final da carga sqlite (a menos que se use `--noindex`), são criados índices em `cnpj_basico` de `empresa`, `estabelecimento` (junto com `cnpj_ordem` e `cnpj_dv`), `simples` e `socios`, em `cpf_cnpj_socio` e `nome_socio_razao_social` de `socios`, e no `codigo` das tabelas de domínio. Sem eles, as consultas ficam inviáveis.
 
-O script informa no terminal o parcial do processamento de cada arquivo, em blocos de 200.000 linhas. O tipo de cada arquivo é identificado pelo nome (ex: `...EMPRECSV`, `...ESTABELE`, `...SOCIOCSV` ou `Empresas0.zip`), então os ZIPs podem ser lidos diretamente, sem descompactar.
+# Consultas e grafo de relacionamentos
 
-## Como executar
-`python3 cnpj.py <caminho entrada> <tipo de saída:csv ou sqlite> <pasta saída> [--dir] [--noindex]`
+As consultas trazem empresas e sócios específicos e a rede de relacionamentos até a profundidade desejada. Funcionam sobre o banco SQLite gerado pelo `cnpj.py`.
 
-Para processar todos os arquivos, salvar em uma pasta, usá-la como `<caminho entrada>` e especificar o argumento `--dir`. Sem `--dir`, apenas o arquivo informado é carregado.
+Como funciona a rede no layout novo:
+* Os sócios são vinculados ao **CNPJ básico** (8 primeiros dígitos). No grafo, a empresa é representada pelo estabelecimento **matriz**.
+* Uma filial consultada aparece ligada à sua matriz (vínculo do tipo `filial`).
+* Os nós são de três tipos: `1` pessoa jurídica (id = CNPJ de 14 dígitos), `2` pessoa física e `3` estrangeiro (id = CPF mascarado + nome).
 
-O argumento opcional `--noindex`, aplicável somente para saída sqlite, indica que **não** devem ser gerados índices automaticamente.
-A criação de índices é muito recomendada e essencial para a funcionalidade de consultas.
+```
+python3 consulta.py <tipo consulta> <item|arquivo input> <pasta saída> [--base <arquivo sqlite>]
+                    [--nivel <int>] [--csv] [--graphml] [--gexf] [--viz] [--conexoes <arquivo>]
+```
 
-## Exemplos
-`python3 cnpj.py "data" sqlite "output" --dir`
+## Tipos de consulta
 
-`python3 cnpj.py "data" csv "output" --dir`
+Tipo | Busca
+---- | -----
+`cnpj` | Empresa pelo CNPJ, com ou sem pontuação (ex: `11.111.111/0001-91`)
+`nome_socio` | Sócios pelo nome completo (maiúsculas e minúsculas tanto faz)
+`cpf` | Sócios pelo CPF. Como a RF só publica 6 dígitos, pode trazer pessoas diferentes
+`cpf_nome` | Sócio pelo CPF seguido do nome, sem espaço (ex: `***123456**FULANO DE TAL`)
+`file` | Vários itens de um arquivo. Com uma coluna, cada linha é um CNPJ. Com duas colunas separadas por `;`, a primeira é o tipo acima e a segunda, o item
 
-`python3 cnpj.py "data/Empresas0.zip" sqlite "output" --noindex`
+## Argumentos opcionais
 
-## Separando arquivos CSV por estado ou municipio
+Argumento | Descrição
+--------- | ---------
+`--base` | Arquivo SQLite. Se omitido, usa `PATH_BD` do `config.py`
+`--nivel` | Profundidade em "pulos". `--nivel 1` traz o item e os diretamente relacionados. Se omitido, usa `NIVEL_MAX_DEFAULT`
+`--csv` | Gera `pessoas.csv` e `vinculos.csv` (padrão se nenhuma saída for escolhida)
+`--graphml` | Gera `rede.graphml`
+`--gexf` | Gera `rede.gexf`, que pode ser aberto no [Gephi](https://gephi.org/)
+`--viz` | Gera `grafo.html`, um grafo interativo para abrir no navegador. Se `PATH_NAVEGADOR` estiver no `config.py`, o navegador abre sozinho
+`--conexoes` | Arquivo com pares de pessoas (CNPJ ou CPF mascarado + nome), um par por linha, separados por `;`. Gera `conexoes.csv` com o caminho entre cada par na rede encontrada, ou `SEM CONEXAO`
 
-Após ter gerado o arquivo `estabelecimento.csv` (saída csv), é possível dividir por estado, ou por cidade (o arquivo de cada cidade recebe o código do município da RF, ver tabela `munic`)
+Exemplos:
 
-### Requisitos
+```bash
+python3 consulta.py cnpj 00000000000191 resultado --nivel 1 --viz
+python3 consulta.py file entrada.csv resultado --csv --gexf
+python3 consulta.py nome_socio "FULANO DE TAL" resultado --graphml --viz
+python3 consulta.py cnpj 00000000000191 resultado --nivel 3 --conexoes pares.csv
+```
 
-`$ python3 -m pip install python-dotenv`
+**Atenção:** use a profundidade com moderação. Dependendo das empresas ou pessoas, a quantidade de relacionados cresce exponencialmente e gera muitas consultas no banco. Nível 3 é um bom parâmetro.
 
-Para ambos os scripts é necessário informar a localização do arquivo `estabelecimento.csv` no arquivo `.env`
+## Arquivos gerados
 
-`FILES_LOCATION=/media/Arquivos`
+Arquivo | Conteúdo
+------- | --------
+`pessoas.csv` | Um nó por linha: coluna `id` mais as colunas de `COLUNAS_CSV` (tipo de pessoa, nível, CNPJ/CPF, nome, dados cadastrais e descrições de município, CNAE, natureza jurídica etc.)
+`vinculos.csv` | Uma aresta por linha: `source` (sócio ou filial), `target` (empresa ou matriz), `tipo` (`socio` ou `filial`), `cod_qualificacao`, `qualificacao` e `data_entrada`
+`rede.graphml` / `rede.gexf` | O grafo completo, com todos os atributos dos nós e vínculos
+`grafo.html` | Visualização interativa (d3.js). Empresas inativas aparecem esmaecidas, e o item consultado tem borda vermelha
+`conexoes.csv` | Só com `--conexoes`: pessoa A, pessoa B e o caminho entre elas
 
-Após isso basta executar os scripts:
+## Configuração (`config.py`)
 
-#### Para separar por UF:
+Variável | Descrição
+-------- | ---------
+`PATH_BD` | Banco SQLite padrão (pode ser trocado com `--base`)
+`NIVEL_MAX_DEFAULT` | Profundidade padrão (pode ser trocada com `--nivel`)
+`PATH_NAVEGADOR` | Caminho do navegador para abrir o `grafo.html` automaticamente. Vazio só gera o arquivo
+`SEP_CSV` | Separador dos CSVs de saída e do arquivo de entrada do tipo `file`
+`COLUNAS_CSV` | Colunas do `pessoas.csv`
+`QUALIFICACOES` | Qualificações de sócio consideradas nos vínculos, com a descrição que aparece no grafo. Uma qualificação fora da lista é ignorada (ex: um procurador não vira vínculo se o código `17` for removido). Use `'TODAS'` para considerar qualquer qualificação
 
-`python3 separar_csv_por_uf.py`
+## Trabalhando direto com a classe RedeCNPJ
 
-#### Para separar por cidade:
+O `consulta.py` é uma "casca" de linha de comando para a classe `RedeCNPJ`, de `rede_cnpj.py`. É ela que navega pelo banco e monta o grafo com o `networkx`, além de converter a rede em DataFrames pandas e nos formatos de grafo.
 
-`python3 separar_csv_por_cidade.py`
+```python
+import sqlite3
+from rede_cnpj import RedeCNPJ
 
-# Consultas
+con = sqlite3.connect('saida/CNPJ_full.db')
+rede = RedeCNPJ(con, nivel_max=2)
+rede.insere_pessoa(1, '00000000000191')         # PJ pelo CNPJ
+rede.insere_com_cpf_ou_nome(nome='FULANO DE TAL')
 
-**Novidade!** Agora é possível fazer consultas que além de trazer empresas e sócios específicos, traz a rede de relacionamentos na profundidade desejada. Os resultados podem ser salvos em formato tabular e/ou em formatos variados de grafos de relacionamento, que podem ser visualizados de forma interativa no navegador ou abertos em softwares que suportem os formatos especificados, como o [Gephi](https://gephi.org/).
+print(rede.dataframe_pessoas())
+print(rede.dataframe_vinculos())
+rede.gera_gexf('rede.gexf')
+```
 
-Essa funcionalidade é exclusiva para a base sqlite gerada usando o `cnpj.py`. No entanto, pode ser relativamente simples adaptar o código para funcionar com outros SGBDs ou arquivos sqlite gerados usando outra nomenclatura.
+O atributo `rede.G` é o grafo `networkx`, que pode ser enriquecido com outras fontes e analisado com os algoritmos da biblioteca (caminhos, centralidade, detecção de ciclos etc.).
 
-## Configurações prévias
-Para executar o script de consulta, é necessário que seu sistema contenha as instalações especificadas acima e, além disso, é necessário:
+# Separando o CSV por UF ou município
 
-#### Networkx 2.x (pacote de criação, manipulação e análise de grafos/redes)
+Depois de gerar o `estabelecimento.csv` (saída `csv`), é possível dividi-lo por UF ou por município. O arquivo de cada cidade recebe o código do município da RF (veja a tabela `munic`).
 
-É **IMPRESCINDÍVEL** que índices sejam criados no `cnpj_basico` das tabelas `empresa`, `estabelecimento`, `simples` e `socios`, e nos campos `nome_socio_razao_social` e `cpf_cnpj_socio` da tabela `socios`. Do contrário, as consultas se tornam insuportavelmente lentas ou até mesmo inviáveis dependendo da profundidade. O script de carga (cnpj.py) foi atualizado para opcionalmente gerar os índices mais importantes automaticamente ao final da carga.
+1. Crie um arquivo `.env` (há um exemplo em `.env.example`) com a pasta onde está o `estabelecimento.csv`, **terminando com `/`**:
 
-## Instruções Básicas:
+   ```
+   FILES_LOCATION=/media/Arquivos/
+   ```
 
-Uso: `python consulta.py <tipo consulta> <item|arquivo input> <caminho output> [--base <arquivo sqlite>]`
-`[--nivel <int>] [--csv] [--graphml] [--gexf] [--viz]`
+2. Rode os scripts **de dentro da pasta `extra_csv`**:
 
-#### Argumentos obrigatórios:
+   ```bash
+   cd extra_csv
+   python3 separar_csv_por_uf.py       # gera UFs/<UF>.csv
+   python3 separar_csv_por_cidade.py   # gera UFs/<UF>/<codigo_municipio>.csv
+   ```
 
-`<tipo consulta>`: Especifica o tipo de item a ser procurado. Opções:
-* **cnpj:** Busca empresa pelo número do CNPJ.
+# Sobre o CPF dos sócios e a LGPD
 
-* **nome_socio:** Busca sócios pelo nome completo.
+Por determinação legal, a RF publica o CPF dos sócios pessoas físicas **mascarado**: os três primeiros e os dois últimos dígitos são ocultados (ex: `***123456**`). Isso tem duas consequências:
 
-* **cpf:** Busca sócios pelo número do CPF.
-      (Pode trazer vários sócios, uma vez que apenas seis dígitos são fornecidos pela RF)
+* A busca por `cpf` compara só os 6 dígitos visíveis, então pode trazer pessoas diferentes. Para identificar uma pessoa, use `cpf_nome`.
+* No grafo, a pessoa física é identificada pelo par CPF mascarado + nome.
 
-No novo layout os sócios são vinculados ao CNPJ básico (8 primeiros dígitos). No grafo, a empresa é representada pelo estabelecimento matriz, e cada filial consultada aparece ligada à sua matriz.
-      
-* **cpf_nome:** Busca sócios pelo número do CPF seguido (sem espaço) do nome completo.
+Os dados são públicos, mas incluem dados pessoais (nomes de sócios, faixa etária). Use-os de acordo com a Lei Geral de Proteção de Dados (Lei 13.709/2018), com finalidade legítima e sem expor as pessoas indevidamente.
 
-* **file:** Arquivo que contem mais de um item a ser buscado.
-        Caso o arquivo tenha apenas um dado por linha, será tratado como número de CNPJ.
-        Caso o arquivo tenha mais de um dado separado por `;`, o primeiro
-        indica um dos tipos acima, e o segundo o item a ser buscado.
-        (outro separador pode ser definido em `SEP_CSV` no `config.py`) 
+# Testes
 
-`<item|arquivo input>`: Item a ser procurado, de acordo com `<tipo consulta>`.
-  
-`<caminho output>`: Pasta onde serão salvos os arquivos gerados.
+Os testes usam uma amostra sintética no formato oficial da RF (`tests/amostra.py`) e cobrem a carga, a verificação das quantidades, a retomada com `--continuar` e as consultas do grafo. Eles rodam no GitHub Actions a cada PR. Para rodar localmente:
 
-#### Argumentos opcionais:
+```bash
+pip install pytest
+python3 -m pytest tests
+```
 
-`--base`: Especifica o arquivo do banco de dados de CNPJ em formato sqlite.
-           Caso não seja especificado, usa o `PATH_BD` definido no `config.py`
+Para gerar só a amostra (útil para experimentar sem baixar os arquivos da RF):
 
-`--nivel`: Especifica a profundidade da consulta em número de "pulos".
-            Exemplo: Caso seja especificado `--nivel 1`, busca o item e as empresas ou pessoas diretamente relacionadas.
-            Caso não seja especificado, usa o `NIVEL_MAX_DEFAULT` no `config.py`
+```bash
+python3 tests/amostra.py amostra
+python3 cnpj.py amostra sqlite saida_amostra --dir
+python3 consulta.py cnpj 11111111000272 resultado --base saida_amostra/CNPJ_full.db --viz
+```
 
-`--csv`: Para gerar o resultado em arquivos csv.
-          São gerados dois arquivos, `pessoas.csv` e `vinculos.csv`.
+# Roteiro
 
-`--graphml`: Para gerar o resultado em grafo no formato GRAPHML.
+Melhorias planejadas:
 
-`--gexf`: Para gerar o resultado em grafo no formato GEXF. 
-           Pode ser aberto com o software [Gephi](https://gephi.org/)
-
- `--viz`: Para gerar um HTML interativo com o resultado em grafo.
-          Para abrir automaticamente o navegador, informar o `PATH_NAVEGADOR` 
-          no `config.py`. Do contrário, basta abrir o arquivo `grafo.html` gerado 
-          em `<caminho output>` com o navegador de preferência.
-
-#### Exemplos:
-
-`python consulta.py cnpj 00000000000191 folder --nivel 1 --viz`
-
-`python consulta.py file data/input.csv pasta --csv --gexf`
-
-`python consulta.py nome_socio "FULANO SICRANO" output --graphml --viz`
-
-#### Atenção:
-
-Especifique o nível de profundidade da rede com moderação, uma vez que, dependendo das empresas ou pessoas buscadas, a quantidade de relacionados pode crescer exponencialmente, atingindo facilmente centenas ou milhares de registros, o que resulta na execução intensiva de queries no BD. Nível 3 é um bom parâmetro.
-
-#### Configuração
-
-No `config.py`, as seguintes configurações são definidas:
-
-`PATH_BD`: Caminho para o arquivo de banco de dados da Receita Federal convertido em sqlite. 
-Pode ser sobrescrito em tempo de execução usando o argumento `--base`.
-
-`NIVEL_MAX_DEFAULT`: Nível máximo default para a profundidade das buscas.
-Pode ser sobrescrito em tempo de execução usando o argumento `--nivel <num>`
-
-`PATH_NAVEGADOR`: Caminho completo para o executável do navegador preferido se desejar que a visualização seja automaticamente apresentada ao final da execução da consulta (se argumento `--viz` for utilizado). Caso vazio, apenas gera o html na pasta de saída.
-
-`SEP_CSV`: Especifica o separador a ser considerado tanto para os arquivos csv de saída (caso seja utilizado o argumento `--csv`), quanto para o arquivo de entrada no caso do uso de `file` como `<tipo consulta>`.
-
-`COLUNAS_CSV`: Especifica a lista de colunas a serem incluídas no arquivo `pessoas.csv` quando usado o argumento `--csv`.
-
-`QUALIFICACOES`: Especifica a lista de qualificações de sócios a serem consideradas na busca dos relacionamentos. Caso `TODAS`, qualquer relação de sociedade listada no BD é considerada.
-
-## Trabalhando diretamente com a classe RedeCNPJ
-
-O objetivo do `consulta.py` é disponibilizar uma interface por linha de comando para facilitar a extração/visualização da rede de relacionamentos de empresas e pessoas a partir da base de dados da RF convertida em sqlite. Ele é uma "casca" para a classe `RedeCNPJ` definida em `rede_cnpj.py`, onde fica a inteligência de navegação no BD e criação de rede/grafo usando o pacote `networkx`, além de métodos para conversão em DataFrames pandas e formatos diversos de representação de estruturas em grafo.
-
-Em seu projeto você pode instanciar diretamente a `RedeCNPJ` especificando a conexão ao BD e o nível máximo de navegação nos relacionamentos, usar os métodos de inserção de empresas/pessoas para montar a rede (sem se preocupar com a navegação para as relacionadas), e usar os métodos para conversão da rede em DataFrame ou formatos diversos de representação de grafos.
-
-E dessa forma você pode também usar o grafo gerado (atributo "G" da classe) para incrementá-lo a partir de outras fontes de dados de interesse para seu caso de uso e usar os diversos algoritmos disponibilizados pela biblioteca `networkx`, como por exemplo detecção de ciclos.
-
-## TO DO
-
-* Aprimorar a documentação do código (principalmente da classe RedeCNPJ) e as instruções neste README.
+* Script para baixar automaticamente os ZIPs da competência mais recente.
+* Tabela própria para os CNAEs secundários (uma linha por CNAE), para buscar empresas por atividade secundária.
+* Carga direta em MySQL/MariaDB e PostgreSQL, usando os modelos do cnpjrfb.
+* Trocar a leitura manual de argumentos por `argparse`.
+* Atualizar o d3.js da visualização (hoje na versão 4).
+* Tabela de tempo e tamanho da carga completa, a partir de uma carga real.

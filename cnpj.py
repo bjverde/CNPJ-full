@@ -18,7 +18,9 @@ import glob
 import sys
 import csv
 import zipfile
+import io
 import datetime
+import warnings
 
 import pandas as pd
 
@@ -159,6 +161,54 @@ ENCODING = 'latin-1'
 
 NOME_ARQUIVO_SQLITE = 'CNPJ_full.db'
 
+# Modos de gravacao do SQLite durante a carga e a criacao de indices.
+#
+# Rapido (padrao): sem journal e sem sync em disco. A gravacao fica bem mais
+# rapida, mas se o processo for interrompido (queda de energia, Ctrl+C, erro)
+# o arquivo pode ficar corrompido, e a carga precisa ser refeita do zero.
+#
+# Seguro (--seguro): modo normal do SQLite, com journal e sync em disco.
+# Mais lento, mas uma interrupcao desfaz apenas o arquivo que estava sendo
+# gravado, e a carga pode ser retomada com --continuar.
+#
+# Em ambos os modos, cada arquivo da RF e gravado em uma unica transacao e
+# registrado na tabela de controle ao terminar.
+PRAGMAS_COMUNS = [
+    'cache_size = -262144',  # 256 MB de cache de paginas
+]
+PRAGMAS_RAPIDO = [
+    'journal_mode = OFF',
+    'synchronous = OFF',
+    'locking_mode = EXCLUSIVE',
+]
+PRAGMAS_SEGURO = [
+    'journal_mode = DELETE',
+    'synchronous = FULL',
+]
+
+MODO_RAPIDO = 'rapido'
+MODO_SEGURO = 'seguro'
+
+# Tabela com os arquivos ja carregados, usada pelo --continuar
+CONTROLE = 'controle_carga'
+
+
+def conecta_sqlite(output_path, modo=MODO_RAPIDO):
+    import sqlite3
+    # isolation_level=None: as transacoes sao controladas explicitamente
+    conBD = sqlite3.connect(os.path.join(output_path, NOME_ARQUIVO_SQLITE),
+                            isolation_level=None)
+    pragmas = PRAGMAS_COMUNS + (PRAGMAS_SEGURO if modo == MODO_SEGURO else PRAGMAS_RAPIDO)
+    for pragma in pragmas:
+        conBD.execute('PRAGMA ' + pragma)
+    return conBD
+
+
+def fecha_sqlite(conBD):
+    # Volta o journal ao modo padrao para o uso normal do banco (consultas)
+    conBD.execute('PRAGMA journal_mode = DELETE')
+    conBD.close()
+
 
 def identifica_tabela(nome):
     nome = os.path.basename(nome).upper()
@@ -194,18 +244,59 @@ def lista_arquivos(input_list):
     return arquivos
 
 
-def le_arquivo(tabela, caminho, membro):
-    '''Gerador de DataFrames (em blocos) de um arquivo da RF.'''
+class ContaLinhas(io.RawIOBase):
+    '''Envolve o arquivo lido pelo pandas e conta as quebras de linha,
+    para conferir a quantidade de linhas fisicas sem ler o arquivo duas vezes.'''
+    def __init__(self, handle):
+        self.handle = handle
+        self.quebras = 0
+        self.ultimo_byte = b''
+
+    def readable(self):
+        return True
+
+    def readinto(self, buffer):
+        dados = self.handle.read(len(buffer))
+        n = len(dados)
+        buffer[:n] = dados
+        if dados:
+            self.quebras += dados.count(b'\n')
+            self.ultimo_byte = dados[-1:]
+        return n
+
+    def close(self):
+        self.handle.close()
+        super().close()
+
+    def linhas(self):
+        # Ultima linha sem quebra no final tambem conta
+        if self.ultimo_byte and self.ultimo_byte != b'\n':
+            return self.quebras + 1
+        return self.quebras
+
+
+def novas_estatisticas():
+    return {'linhas_arquivo': 0, 'registros_lidos': 0, 'registros_descartados': 0}
+
+
+def le_arquivo(tabela, caminho, membro, estatisticas=None):
+    '''Gerador de DataFrames (em blocos) de um arquivo da RF.
+    Se estatisticas (dict) for informado, preenche as quantidades de linhas
+    do arquivo, de registros lidos e de linhas descartadas por estarem mal
+    formadas (com mais campos do que o layout).'''
     nomes = [c[0] for c in COLUNAS[tabela]]
+    if estatisticas is None:
+        estatisticas = novas_estatisticas()
 
     if membro is None:
         handle = open(caminho, 'rb')
     else:
         zf = zipfile.ZipFile(caminho)
         handle = zf.open(membro)
+    contador = ContaLinhas(handle)
 
     try:
-        leitor = pd.read_csv(handle,
+        leitor = pd.read_csv(io.BufferedReader(contador),
                              sep=';',
                              header=None,
                              names=nomes,
@@ -217,12 +308,75 @@ def le_arquivo(tabela, caminho, membro):
                              encoding_errors='replace',
                              on_bad_lines='warn',
                              chunksize=CHUNKSIZE)
-        for bloco in leitor:
+        while True:
+            # Captura os avisos de linhas descartadas para conta-las
+            with warnings.catch_warnings(record=True) as avisos:
+                warnings.simplefilter('always', pd.errors.ParserWarning)
+                try:
+                    bloco = next(leitor)
+                except StopIteration:
+                    bloco = None
+
+            for aviso in avisos:
+                mensagem = str(aviso.message)
+                if issubclass(aviso.category, pd.errors.ParserWarning):
+                    estatisticas['registros_descartados'] += len(re.findall(r'Skipping line', mensagem))
+                print('\nAVISO: {}'.format(mensagem.strip()), file=sys.stderr)
+
+            if bloco is None:
+                break
+
+            estatisticas['registros_lidos'] += len(bloco)
             yield trata_bloco(tabela, bloco)
+
+        estatisticas['linhas_arquivo'] = contador.linhas()
     finally:
-        handle.close()
+        contador.close()
         if membro is not None:
             zf.close()
+
+
+def avalia_estatisticas(est):
+    '''Retorna (status, observacao) comparando as quantidades de um arquivo.'''
+    problemas = []
+    if est['registros_gravados'] != est['registros_lidos']:
+        problemas.append('{} registros lidos, mas {} gravados'.format(
+            est['registros_lidos'], est['registros_gravados']))
+    if est['registros_descartados'] > 0:
+        problemas.append('{} linhas mal formadas descartadas'.format(est['registros_descartados']))
+    diferenca = est['linhas_arquivo'] - est['registros_lidos'] - est['registros_descartados']
+    if diferenca != 0:
+        problemas.append('{} linhas no arquivo, {} lidas + descartadas (diferenca de {}; '
+                         'pode ser quebra de linha dentro de um campo)'.format(
+                             est['linhas_arquivo'],
+                             est['registros_lidos'] + est['registros_descartados'],
+                             diferenca))
+    if problemas:
+        return 'DIVERGENTE', '; '.join(problemas)
+    return 'OK', ''
+
+
+def imprime_verificacao(linhas):
+    '''Imprime o resumo da verificacao. linhas: lista de dicts com tabela,
+    arquivo, membro, linhas_arquivo, registros_lidos, registros_descartados,
+    registros_gravados, status e observacao.'''
+    print(u'\nVerificacao das quantidades por arquivo:')
+    print(u'  {:<8} {:>12} {:>12} {:>11} {:>12}  {:<16} {}'.format(
+        'status', 'linhas arq.', 'lidos', 'descartados', 'gravados', 'tabela', 'arquivo'))
+    for l in linhas:
+        print(u'  {:<8} {:>12} {:>12} {:>11} {:>12}  {:<16} {}{}'.format(
+            'OK' if l['status'] == 'OK' else 'DIVERG.',
+            l['linhas_arquivo'], l['registros_lidos'], l['registros_descartados'],
+            l['registros_gravados'], l['tabela'], l['arquivo'],
+            ' [{}]'.format(l['membro']) if l['membro'] else ''))
+
+    divergentes = [l for l in linhas if l['status'] != 'OK']
+    if divergentes:
+        print(u'\nATENCAO! {} arquivo(s) com divergencia:'.format(len(divergentes)))
+        for l in divergentes:
+            print(u'  {}: {}'.format(l['arquivo'], l['observacao']))
+    else:
+        print(u'\nTodos os arquivos conferem.')
 
 
 def trata_bloco(tabela, df):
@@ -258,15 +412,162 @@ def trata_bloco(tabela, df):
 
 
 def cria_tabelas_sqlite(conBD, tabelas):
-    cursorBD = conBD.cursor()
+    conBD.execute('BEGIN')
     for tabela in tabelas:
         colunas = ', '.join('{} {}'.format(nome, tipo) for nome, tipo in COLUNAS[tabela])
-        cursorBD.execute('DROP TABLE IF EXISTS {}'.format(tabela))
-        cursorBD.execute('CREATE TABLE {} ({})'.format(tabela, colunas))
-    conBD.commit()
+        conBD.execute('DROP TABLE IF EXISTS {}'.format(tabela))
+        conBD.execute('CREATE TABLE {} ({})'.format(tabela, colunas))
+    conBD.execute('DROP TABLE IF EXISTS {}'.format(CONTROLE))
+    conBD.execute('''CREATE TABLE {} (
+                        tabela TEXT,
+                        arquivo TEXT,
+                        membro TEXT,
+                        modo TEXT,
+                        linhas_arquivo INTEGER,
+                        registros_lidos INTEGER,
+                        registros_descartados INTEGER,
+                        registros_gravados INTEGER,
+                        status TEXT,
+                        observacao TEXT,
+                        inicio TEXT,
+                        fim TEXT)'''.format(CONTROLE))
+    conBD.execute('COMMIT')
 
 
-def cnpj_full(input_list, tipo_output, output_path):
+def id_arquivo(caminho, membro):
+    # Identifica o arquivo pelo nome (sem a pasta), para que a carga possa
+    # ser retomada mesmo se a pasta de entrada mudar de lugar.
+    return os.path.basename(caminho), membro or ''
+
+
+def prepara_continuacao(conBD, tabelas):
+    '''Le a tabela de controle de uma carga anterior. Retorna o conjunto de
+    arquivos ja concluidos e os totais de registros por tabela.'''
+    existentes = set(r[0] for r in conBD.execute(
+        "SELECT name FROM sqlite_master WHERE type='table'"))
+
+    if CONTROLE not in existentes:
+        print(u'ERRO: Nao ha carga anterior para continuar neste banco. '
+              u'Rode a carga sem --continuar.')
+        sys.exit(-1)
+
+    # Arquivo iniciado e nao concluido em modo rapido: nao ha como desfazer
+    # a gravacao parcial, entao a carga precisa ser refeita do zero.
+    incompletos = conBD.execute(
+        'SELECT arquivo, membro, modo FROM {} WHERE fim IS NULL'.format(CONTROLE)).fetchall()
+    for arquivo, membro, modo in incompletos:
+        if modo != MODO_SEGURO:
+            print(u'''ERRO: A carga anterior foi interrompida no arquivo {} [{}] no modo rapido.
+Nesse modo a gravacao parcial nao pode ser desfeita e o banco pode estar
+corrompido. Rode a carga do zero (sem --continuar), de preferencia com --seguro.'''.format(arquivo, membro))
+            sys.exit(-1)
+
+    # No modo seguro, o arquivo interrompido teve seus dados desfeitos pelo
+    # SQLite; basta apagar o registro de controle e carregar de novo.
+    conBD.execute('DELETE FROM {} WHERE fim IS NULL'.format(CONTROLE))
+
+    for tabela in tabelas:
+        if tabela not in existentes:
+            colunas = ', '.join('{} {}'.format(nome, tipo) for nome, tipo in COLUNAS[tabela])
+            conBD.execute('CREATE TABLE {} ({})'.format(tabela, colunas))
+
+    concluidos = set()
+    totais = {t: 0 for t in tabelas}
+    for tabela, arquivo, membro, registros in conBD.execute(
+            'SELECT tabela, arquivo, membro, registros_gravados FROM {}'.format(CONTROLE)):
+        concluidos.add((arquivo, membro))
+        if tabela in totais:
+            totais[tabela] += registros
+
+    return concluidos, totais
+
+
+def grava_arquivo_sqlite(conBD, tabela, caminho, membro, modo, totais):
+    arquivo, nome_membro = id_arquivo(caminho, membro)
+    agora = lambda: datetime.datetime.now().isoformat(timespec='seconds')
+
+    # Registra o inicio antes da transacao do arquivo, para saber depois
+    # se ele foi interrompido no meio.
+    conBD.execute("INSERT INTO {} (tabela, arquivo, membro, modo, status, inicio) "
+                  "VALUES (?, ?, ?, ?, 'EM ANDAMENTO', ?)".format(CONTROLE),
+                  (tabela, arquivo, nome_membro, modo, agora()))
+    id_controle = conBD.execute('SELECT last_insert_rowid()').fetchone()[0]
+
+    nomes = [c[0] for c in COLUNAS[tabela]]
+    sql_insert = 'INSERT INTO {} ({}) VALUES ({})'.format(
+        tabela, ', '.join(nomes), ', '.join('?' * len(nomes)))
+
+    # Os registros deste arquivo sao os de rowid acima do maior atual
+    rowid_inicial = conBD.execute(
+        'SELECT COALESCE(MAX(rowid), 0) FROM {}'.format(tabela)).fetchone()[0]
+
+    est = novas_estatisticas()
+    conBD.execute('BEGIN')
+    try:
+        for i_bloco, df in enumerate(le_arquivo(tabela, caminho, membro, est)):
+            linhas = df.astype(object).where(df.notna(), None).itertuples(index=False, name=None)
+            conBD.executemany(sql_insert, linhas)
+
+            print('Bloco {}: {} registros de {} ate agora.'.format(
+                i_bloco + 1, totais[tabela] + est['registros_lidos'], tabela), end='\r')
+
+        # Confere no banco quantos registros deste arquivo foram gravados
+        est['registros_gravados'] = conBD.execute(
+            'SELECT COUNT(*) FROM {} WHERE rowid > ?'.format(tabela),
+            (rowid_inicial,)).fetchone()[0]
+        status, observacao = avalia_estatisticas(est)
+
+        conBD.execute('UPDATE {} SET linhas_arquivo = ?, registros_lidos = ?, '
+                      'registros_descartados = ?, registros_gravados = ?, '
+                      'status = ?, observacao = ?, fim = ? WHERE rowid = ?'.format(CONTROLE),
+                      (est['linhas_arquivo'], est['registros_lidos'],
+                       est['registros_descartados'], est['registros_gravados'],
+                       status, observacao, agora(), id_controle))
+        conBD.execute('COMMIT')
+    except BaseException:
+        # No modo rapido (sem journal) o SQLite nao consegue desfazer a
+        # gravacao; o registro de controle fica sem "fim" e o --continuar
+        # recusa retomar.
+        if modo == MODO_SEGURO and conBD.in_transaction:
+            conBD.execute('ROLLBACK')
+        raise
+
+    totais[tabela] += est['registros_gravados']
+
+
+def verificacao_sqlite(conBD):
+    colunas = ['tabela', 'arquivo', 'membro', 'linhas_arquivo', 'registros_lidos',
+               'registros_descartados', 'registros_gravados', 'status', 'observacao']
+    cursor = conBD.execute('SELECT {} FROM {} ORDER BY rowid'.format(', '.join(colunas), CONTROLE))
+    return [dict(zip(colunas, linha)) for linha in cursor]
+
+
+def grava_arquivo_csv(output_path, tabela, caminho, membro, totais, csv_iniciados):
+    nome_arquivo_csv = os.path.join(output_path, tabela + '.csv')
+    est = novas_estatisticas()
+    est['registros_gravados'] = 0
+    for i_bloco, df in enumerate(le_arquivo(tabela, caminho, membro, est)):
+        primeiro = tabela not in csv_iniciados
+        df.to_csv(nome_arquivo_csv,
+                  header=primeiro,
+                  mode='w' if primeiro else 'a',
+                  index=False,
+                  quoting=csv.QUOTE_NONNUMERIC)
+        csv_iniciados.add(tabela)
+        est['registros_gravados'] += len(df)
+
+        print('Bloco {}: {} registros de {} ate agora.'.format(
+            i_bloco + 1, totais[tabela] + est['registros_gravados'], tabela), end='\r')
+
+    totais[tabela] += est['registros_gravados']
+
+    arquivo, nome_membro = id_arquivo(caminho, membro)
+    est['status'], est['observacao'] = avalia_estatisticas(est)
+    est.update(tabela=tabela, arquivo=arquivo, membro=nome_membro)
+    return est
+
+
+def cnpj_full(input_list, tipo_output, output_path, modo=MODO_RAPIDO, continuar=False):
     arquivos = lista_arquivos(input_list)
 
     if not arquivos:
@@ -278,40 +579,33 @@ def cnpj_full(input_list, tipo_output, output_path):
 
     tabelas = sorted(set(a[0] for a in arquivos), key=ORDEM_TABELAS.index)
 
-    if tipo_output == 'sqlite':
-        import sqlite3
-        conBD = sqlite3.connect(os.path.join(output_path, NOME_ARQUIVO_SQLITE))
-        cria_tabelas_sqlite(conBD, tabelas)
-
     totais = {t: 0 for t in tabelas}
+    concluidos = set()
     csv_iniciados = set()
-
-    for tabela, caminho, membro in arquivos:
-        print('Processando arquivo: {}{} -> {}'.format(
-            caminho, ' [{}]'.format(membro) if membro else '', tabela))
-
-        for i_bloco, df in enumerate(le_arquivo(tabela, caminho, membro)):
-            totais[tabela] += len(df)
-            print('Bloco {}: {} registros de {} ate agora.'.format(
-                i_bloco + 1, totais[tabela], tabela), end='\r')
-
-            if tipo_output == 'csv':
-                nome_arquivo_csv = os.path.join(output_path, tabela + '.csv')
-                primeiro = tabela not in csv_iniciados
-                df.to_csv(nome_arquivo_csv,
-                          header=primeiro,
-                          mode='w' if primeiro else 'a',
-                          index=False,
-                          quoting=csv.QUOTE_NONNUMERIC)
-                csv_iniciados.add(tabela)
-
-            elif tipo_output == 'sqlite':
-                df.to_sql(tabela, con=conBD, if_exists='append', index=False)
-        print()
+    verificacao_csv = []
 
     if tipo_output == 'sqlite':
-        conBD.commit()
-        conBD.close()
+        print(u'Modo de gravacao: {}'.format(modo))
+        conBD = conecta_sqlite(output_path, modo)
+        if continuar:
+            concluidos, totais = prepara_continuacao(conBD, tabelas)
+        else:
+            cria_tabelas_sqlite(conBD, tabelas)
+
+    try:
+        processa_arquivos(arquivos, tipo_output, output_path, modo, conBD if tipo_output == 'sqlite' else None,
+                          concluidos, totais, csv_iniciados, verificacao_csv)
+    except BaseException:
+        # Libera o arquivo do banco (no modo rapido ele fica com lock exclusivo)
+        if tipo_output == 'sqlite':
+            conBD.close()
+        raise
+
+    if tipo_output == 'sqlite':
+        imprime_verificacao(verificacao_sqlite(conBD))
+        fecha_sqlite(conBD)
+    else:
+        imprime_verificacao(verificacao_csv)
 
     print('\nConversao concluida. Total de registros por tabela:')
     for tabela in tabelas:
@@ -327,10 +621,27 @@ OBS: Uso de índices altamente recomendado!
               '''.format(os.path.join(output_path, NOME_ARQUIVO_SQLITE)))
 
 
-def cnpj_index(output_path):
-    import sqlite3
+def processa_arquivos(arquivos, tipo_output, output_path, modo, conBD,
+                      concluidos, totais, csv_iniciados, verificacao_csv):
+    for tabela, caminho, membro in arquivos:
+        descricao = '{}{} -> {}'.format(caminho, ' [{}]'.format(membro) if membro else '', tabela)
 
-    conBD = sqlite3.connect(os.path.join(output_path, NOME_ARQUIVO_SQLITE))
+        if id_arquivo(caminho, membro) in concluidos:
+            print('Ja carregado, pulando: {}'.format(descricao))
+            continue
+
+        print('Processando arquivo: {}'.format(descricao))
+
+        if tipo_output == 'csv':
+            verificacao_csv.append(
+                grava_arquivo_csv(output_path, tabela, caminho, membro, totais, csv_iniciados))
+        elif tipo_output == 'sqlite':
+            grava_arquivo_sqlite(conBD, tabela, caminho, membro, modo, totais)
+        print()
+
+
+def cnpj_index(output_path, modo=MODO_RAPIDO):
+    conBD = conecta_sqlite(output_path, modo)
 
     print(u'''
 Criando índices...
@@ -354,20 +665,27 @@ Essa operaçao pode levar vários minutos.
 
     print(u'Indices criados com sucesso.')
 
-    conBD.close()
+    fecha_sqlite(conBD)
 
 
 def help():
     print('''
-Uso: python cnpj.py <path_input> <output:csv|sqlite> <path_output> [--dir] [--noindex]
+Uso: python cnpj.py <path_input> <output:csv|sqlite> <path_output> [--dir] [--noindex] [--seguro] [--continuar]
 Argumentos opcionais:
  [--dir]: Indica que o <path_input> e uma pasta com os ZIPs (ou CSVs) da RF.
  [--noindex]: NAO gera indices automaticamente no sqlite ao final da carga.
+ [--seguro]: Grava no modo normal do SQLite (com journal e sync em disco).
+             Mais lento, mas uma interrupcao nao corrompe o banco e permite
+             retomar a carga com --continuar. Sem ele, usa o modo rapido.
+ [--continuar]: Retoma uma carga sqlite interrompida, pulando os arquivos
+                ja concluidos. Use os mesmos arquivos de entrada.
 
 Exemplos: python cnpj.py "data/Empresas0.zip" sqlite "output"
           python cnpj.py "data" sqlite "output" --dir
           python cnpj.py "data" sqlite "output" --dir --noindex
           python cnpj.py "data" csv "output" --dir
+          python cnpj.py "data" sqlite "output" --dir --seguro
+          python cnpj.py "data" sqlite "output" --dir --seguro --continuar
     ''')
 
 
@@ -383,12 +701,20 @@ def main():
         output_path = sys.argv[3]
 
         gera_index = True
+        modo = MODO_RAPIDO
+        continuar = False
         input_list = [input_path]
 
         if num_argv > 4:
             for opcional in sys.argv[4:num_argv]:
                 if (opcional == '--noindex'):
                     gera_index = False
+
+                elif (opcional == '--seguro'):
+                    modo = MODO_SEGURO
+
+                elif (opcional == '--continuar'):
+                    continuar = True
 
                 elif (opcional == '--dir'):
                     input_list = glob.glob(os.path.join(input_path, '*.zip'))
@@ -417,13 +743,17 @@ Escolha um dos seguintes tipos de output: csv ou sqlite.
             ''')
             help()
 
+        elif continuar and tipo_output != 'sqlite':
+            print(u'ERRO: --continuar so pode ser usado com output sqlite.')
+            sys.exit(-1)
+
         else:
             print('Iniciando processamento em {}'.format(datetime.datetime.now()))
 
-            cnpj_full(input_list, tipo_output, output_path)
+            cnpj_full(input_list, tipo_output, output_path, modo, continuar)
 
             if (gera_index) and (tipo_output == 'sqlite'):
-                cnpj_index(output_path)
+                cnpj_index(output_path, modo)
 
             print('Processamento concluido em {}'.format(datetime.datetime.now()))
 
