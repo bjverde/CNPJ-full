@@ -1,20 +1,33 @@
 # Dados Públicos CNPJ - Conversão para CSV/SQLITE e Consultas
-Utilitário em Python para carregar a base completa de CNPJ [disponibilizada pela Receita Federal](http://idg.receita.fazenda.gov.br/orientacao/tributaria/cadastros/cadastro-nacional-de-pessoas-juridicas-cnpj/dados-publicos-cnpj) (aprox. 85 GB) e transformá-la em arquivos csv ou sqlite para fácil consumo. Processa dados de empresas, sócios e CNAEs.
+Utilitário em Python para carregar a base completa de CNPJ [disponibilizada pela Receita Federal](https://dados.gov.br/dados/conjuntos-dados/cadastro-nacional-da-pessoa-juridica---cnpj) e transformá-la em arquivos csv ou sqlite para fácil consumo. Processa dados de empresas, estabelecimentos, sócios, Simples/MEI e tabelas de domínio (CNAEs, municípios, países, naturezas jurídicas, qualificações e motivos).
 Possibilita também fazer consultas de empresas ou sócios e gravar resultados em CSV ou em grafo de relacionamentos.
 
 ![Grafo](img/grafo.png?raw=true "Grafo")
 
-**ATENÇÃO!**
+**Layout novo (a partir de março de 2021)**
 
-A partir de março de 2021, a Receita Federal mudou completamente a forma de disponibilizar os dados públicos do CNPJ. O script de carga deste repositório ainda não foi atualizado para refletir estas alterações, e portanto não funcionará para os novos arquivos disponibilizados a partir desta data.
+A Receita Federal passou a disponibilizar os dados em vários arquivos ZIP, cada um com um CSV sem cabeçalho, separado por `;` e em encoding latin-1. Os scripts deste repositório foram atualizados para esse layout, conforme o dicionário de dados da RF (`cnpj-metadados.pdf`).
 
-A **boa notícia** é que agora os arquivos já estão sendo disponibilizados pela RF em formato CSV, o que, dependendo do seu caso, pode até dispensar o uso deste script.
+Os nomes de tabelas e colunas gerados seguem o modelo de banco do projeto [cnpjrfb](https://github.com/bjverde/cnpjrfb/tree/master/modelo_banco):
 
-Os scripts deste repositório no entanto ainda assim serão atualizados para manter funcional a conversão dos dados para formato SQLite, assim como os scripts de consulta.
+Tabela | Arquivos da RF | Conteúdo
+------ | -------------- | --------
+`empresa` | `Empresas*.zip` | Dados da empresa (CNPJ básico, razão social, natureza jurídica, capital social, porte...)
+`estabelecimento` | `Estabelecimentos*.zip` | Matriz e filiais (CNPJ completo = `cnpj_basico` + `cnpj_ordem` + `cnpj_dv`), endereço, situação, CNAEs
+`socios` | `Socios*.zip` | Quadro societário, vinculado ao CNPJ básico
+`simples` | `Simples.zip` | Opção pelo Simples e pelo MEI
+`cnae`, `moti`, `munic`, `natju`, `pais`, `quals` | `Cnaes.zip`, `Motivos.zip`, `Municipios.zip`, `Naturezas.zip`, `Paises.zip`, `Qualificacoes.zip` | Tabelas de domínio (`codigo`, `descricao`)
+
+Tratamentos feitos na carga:
+* Datas zeradas (`0` ou `00000000`) viram vazio (NULL).
+* `capital_social` é convertido de `1000,00` para número.
+* Representante legal inexistente (`***000000**`) vira vazio.
+* No SQLite, códigos de domínio (município, país, CNAE, natureza, qualificação, motivo, situação etc.) são gravados como inteiros, para que os joins funcionem independentemente de zeros à esquerda. CNPJ, CPF, CEP e telefones continuam como texto.
+* O campo `cnae_fiscal_secundaria` é mantido como no arquivo original (códigos separados por vírgula).
 
 # Conversão para CSV ou SQLITE
 
-A forma recomendada de fazer a carga atualmente é: salvar os múltiplos arquivos zip em uma pasta dedicada e executar:
+A forma recomendada de fazer a carga é: baixar todos os arquivos zip de uma mesma competência para uma pasta dedicada (sem renomear) e executar:
 
 `python3 cnpj.py PASTA_COM_ZIPS sqlite PASTA_DE_SAIDA --dir`
 
@@ -52,44 +65,35 @@ O [Pandas](https://pandas.pydata.org) usa. É uma extensão que melhora a veloci
 
 
 ## Antes de executar
-Atente para o fato de que o arquivo de dados disponibilizado pela RF é muito grande. São aprox. 85 GB de arquivo texto descomprimido.
-Portanto, é bastante provável que seu computador dedique tempo considerável a essa execução, algo em torno de 2 ou 3 horas.
+Atente para o fato de que os arquivos disponibilizados pela RF são muito grandes (dezenas de GB descomprimidos).
+Portanto, é bastante provável que seu computador dedique tempo considerável a essa execução.
 
-O script informa no terminal o parcial do processamento, mostrando o "bloco" (conjunto parcial) de linhas que está sendo convertido. Cada bloco contempla 100.000 linhas (registros) da base de dados.
-
-## Tamanho das tabelas geradas (versão atualizada em 26/03/2019)
-Tabela | Tamanho do arquivo | Quantidade de linhas
------- | ------------------ | --------------------
-Empresas | Aprox. 12gb | 40.184.161
-CNAES secundárias | 1,18gb | 45.321.058 <sup>*</sup>
-Sócios | 1,71gb | 18.613.392
-
-<sup>*</sup> Observar que esta quantidade de linhas não corresponde ao número de linhas referentes a CNAEs secundários no arquivo original, uma vez que no original todos os CNAEs secundários de uma determinada empresa estão na mesma linha, enquanto na versão convertida é gerada uma linha para cada CNAE secundário associado à empresa.
+O script informa no terminal o parcial do processamento de cada arquivo, em blocos de 200.000 linhas. O tipo de cada arquivo é identificado pelo nome (ex: `...EMPRECSV`, `...ESTABELE`, `...SOCIOCSV` ou `Empresas0.zip`), então os ZIPs podem ser lidos diretamente, sem descompactar.
 
 ## Como executar
 `python3 cnpj.py <caminho entrada> <tipo de saída:csv ou sqlite> <pasta saída> [--dir] [--noindex]`
 
-Caso a base seja disponibilizada em múltiplos arquivos zip, salvar em uma pasta, usá-la como `<caminho entrada>` e especificar o argumento `--dir`.
+Para processar todos os arquivos, salvar em uma pasta, usá-la como `<caminho entrada>` e especificar o argumento `--dir`. Sem `--dir`, apenas o arquivo informado é carregado.
 
 O argumento opcional `--noindex`, aplicável somente para saída sqlite, indica que **não** devem ser gerados índices automaticamente.
 A criação de índices é muito recomendada e essencial para a funcionalidade de consultas.
 
 ## Exemplos
-`python3 cnpj.py "data\F.K032001K.D90308" sqlite "data"`
-
 `python3 cnpj.py "data" sqlite "output" --dir`
 
-`python3 cnpj.py "data\DADOS_ABERTOS_CNPJ.zip" sqlite "data" --noindex`
+`python3 cnpj.py "data" csv "output" --dir`
+
+`python3 cnpj.py "data/Empresas0.zip" sqlite "output" --noindex`
 
 ## Separando arquivos CSV por estado ou municipio
 
-Após ter gerado o arquivo empresas.csv, é possível dividir por estado, ou por cidade
+Após ter gerado o arquivo `estabelecimento.csv` (saída csv), é possível dividir por estado, ou por cidade (o arquivo de cada cidade recebe o código do município da RF, ver tabela `munic`)
 
 ### Requisitos
 
 `$ python3 -m pip install python-dotenv`
 
-Para ambos os scripts é necessário informar a localização do arquivo `empresas.csv` no arquivo `.env`
+Para ambos os scripts é necessário informar a localização do arquivo `estabelecimento.csv` no arquivo `.env`
 
 `FILES_LOCATION=/media/Arquivos`
 
@@ -114,7 +118,7 @@ Para executar o script de consulta, é necessário que seu sistema contenha as i
 
 #### Networkx 2.x (pacote de criação, manipulação e análise de grafos/redes)
 
-É **IMPRESCINDÍVEL** que índices sejam criados nos campos `cnpj` das tabelas `empresas` e `socios`, e nos campos `nome_socio` e `cnpj_cpf_socio` da tabela `socios`. Do contrário, as consultas se tornam insuportavelmente lentas ou até mesmo inviáveis dependendo da profundidade. O script de carga (cnpj.py) foi atualizado para opcionalmente gerar os índices mais importantes automaticamente ao final da carga.
+É **IMPRESCINDÍVEL** que índices sejam criados no `cnpj_basico` das tabelas `empresa`, `estabelecimento`, `simples` e `socios`, e nos campos `nome_socio_razao_social` e `cpf_cnpj_socio` da tabela `socios`. Do contrário, as consultas se tornam insuportavelmente lentas ou até mesmo inviáveis dependendo da profundidade. O script de carga (cnpj.py) foi atualizado para opcionalmente gerar os índices mais importantes automaticamente ao final da carga.
 
 ## Instruções Básicas:
 
@@ -130,6 +134,8 @@ Uso: `python consulta.py <tipo consulta> <item|arquivo input> <caminho output> [
 
 * **cpf:** Busca sócios pelo número do CPF.
       (Pode trazer vários sócios, uma vez que apenas seis dígitos são fornecidos pela RF)
+
+No novo layout os sócios são vinculados ao CNPJ básico (8 primeiros dígitos). No grafo, a empresa é representada pelo estabelecimento matriz, e cada filial consultada aparece ligada à sua matriz.
       
 * **cpf_nome:** Busca sócios pelo número do CPF seguido (sem espaço) do nome completo.
 

@@ -1,4 +1,4 @@
-﻿PATH_BD = 'data/CNPJ_full.db'
+PATH_BD = 'data/CNPJ_full.db'
 NIVEL_MAX_DEFAULT = 3
 
 PATH_NAVEGADOR = ''
@@ -10,18 +10,22 @@ COLUNAS_CSV =  ['tipo_pessoa',
                 'cnpj',
                 'cpf',
                 'nome',
-                'matriz_filial', 
-                'razao_social', 
-                'nome_fantasia', 
-                'situacao', 
-                'data_situacao',
-                'motivo_situacao',
-                'nm_cidade_exterior',
-                'cod_pais',
-                'nome_pais',
-                'cod_nat_juridica',
-                'data_inicio_ativ', 
-                'cnae_fiscal',
+                'identificador_matriz_filial',
+                'razao_social',
+                'nome_fantasia',
+                'situacao_cadastral',
+                'data_situacao_cadastral',
+                'motivo_situacao_cadastral',
+                'motivo_situacao_cadastral_descricao',
+                'nome_cidade_exterior',
+                'pais',
+                'pais_descricao',
+                'natureza_juridica',
+                'natureza_juridica_descricao',
+                'data_inicio_atividade',
+                'cnae_fiscal_principal',
+                'cnae_fiscal_principal_descricao',
+                'cnae_fiscal_secundaria',
                 'tipo_logradouro',
                 'logradouro',
                 'numero',
@@ -29,18 +33,21 @@ COLUNAS_CSV =  ['tipo_pessoa',
                 'bairro',
                 'cep',
                 'uf',
-                'cod_municipio',
                 'municipio',
-                'email',
-                'qualif_resp',
+                'municipio_descricao',
+                'correio_eletronico',
+                'qualificacao_responsavel',
                 'capital_social',
-                'porte',
-                'opc_simples',
-                'data_opc_simples',
-                'data_exc_simples',
-                'opc_mei',
-                'sit_especial',
-                'data_sit_especial']
+                'porte_empresa',
+                'ente_federativo_responsavel',
+                'opcao_pelo_simples',
+                'data_opcao_simples',
+                'data_exclusao_simples',
+                'opcao_mei',
+                'data_opcao_mei',
+                'data_exclusao_mei',
+                'situacao_especial',
+                'data_situacao_especial']
 
 #QUALIFICACOES = 'TODAS'
 QUALIFICACOES = {
@@ -84,4 +91,4 @@ QUALIFICACOES = {
     '73':'Presidente Residente ou Domiciliado no Exterior', 
     '74':'Sócio-Administrador Residente ou Domiciliado no Exterior', 
     '75':'Fundador Residente ou Domiciliado no Exterior'
-}
+}
