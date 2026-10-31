@@ -1,0 +1,32 @@
+name: Testes
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+jobs:
+  testes:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # 3.9 cobre pandas 2.x; 3.12 e 3.13 cobrem as versoes mais recentes
+        python-version: ['3.9', '3.12', '3.13']
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Instala o Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      - name: Instala as dependencias
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt pytest
+
+      - name: Roda os testes
+        run: python -m pytest -v tests

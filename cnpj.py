@@ -18,6 +18,7 @@ import glob
 import sys
 import csv
 import zipfile
+import io
 import datetime
 import warnings
 
@@ -243,7 +244,7 @@ def lista_arquivos(input_list):
     return arquivos
 
 
-class ContaLinhas:
+class ContaLinhas(io.RawIOBase):
     '''Envolve o arquivo lido pelo pandas e conta as quebras de linha,
     para conferir a quantidade de linhas fisicas sem ler o arquivo duas vezes.'''
     def __init__(self, handle):
@@ -251,18 +252,21 @@ class ContaLinhas:
         self.quebras = 0
         self.ultimo_byte = b''
 
-    def read(self, n=-1):
-        dados = self.handle.read(n)
-        if dados:
-            self.quebras += dados.count(b'\n')
-            self.ultimo_byte = dados[-1:]
-        return dados
-
     def readable(self):
         return True
 
+    def readinto(self, buffer):
+        dados = self.handle.read(len(buffer))
+        n = len(dados)
+        buffer[:n] = dados
+        if dados:
+            self.quebras += dados.count(b'\n')
+            self.ultimo_byte = dados[-1:]
+        return n
+
     def close(self):
         self.handle.close()
+        super().close()
 
     def linhas(self):
         # Ultima linha sem quebra no final tambem conta
@@ -292,7 +296,7 @@ def le_arquivo(tabela, caminho, membro, estatisticas=None):
     contador = ContaLinhas(handle)
 
     try:
-        leitor = pd.read_csv(contador,
+        leitor = pd.read_csv(io.BufferedReader(contador),
                              sep=';',
                              header=None,
                              names=nomes,
@@ -588,21 +592,14 @@ def cnpj_full(input_list, tipo_output, output_path, modo=MODO_RAPIDO, continuar=
         else:
             cria_tabelas_sqlite(conBD, tabelas)
 
-    for tabela, caminho, membro in arquivos:
-        descricao = '{}{} -> {}'.format(caminho, ' [{}]'.format(membro) if membro else '', tabela)
-
-        if id_arquivo(caminho, membro) in concluidos:
-            print('Ja carregado, pulando: {}'.format(descricao))
-            continue
-
-        print('Processando arquivo: {}'.format(descricao))
-
-        if tipo_output == 'csv':
-            verificacao_csv.append(
-                grava_arquivo_csv(output_path, tabela, caminho, membro, totais, csv_iniciados))
-        elif tipo_output == 'sqlite':
-            grava_arquivo_sqlite(conBD, tabela, caminho, membro, modo, totais)
-        print()
+    try:
+        processa_arquivos(arquivos, tipo_output, output_path, modo, conBD if tipo_output == 'sqlite' else None,
+                          concluidos, totais, csv_iniciados, verificacao_csv)
+    except BaseException:
+        # Libera o arquivo do banco (no modo rapido ele fica com lock exclusivo)
+        if tipo_output == 'sqlite':
+            conBD.close()
+        raise
 
     if tipo_output == 'sqlite':
         imprime_verificacao(verificacao_sqlite(conBD))
@@ -622,6 +619,25 @@ def cnpj_full(input_list, tipo_output, output_path, modo=MODO_RAPIDO, continuar=
 Arquivo SQLITE gerado: {}
 OBS: Uso de índices altamente recomendado!
               '''.format(os.path.join(output_path, NOME_ARQUIVO_SQLITE)))
+
+
+def processa_arquivos(arquivos, tipo_output, output_path, modo, conBD,
+                      concluidos, totais, csv_iniciados, verificacao_csv):
+    for tabela, caminho, membro in arquivos:
+        descricao = '{}{} -> {}'.format(caminho, ' [{}]'.format(membro) if membro else '', tabela)
+
+        if id_arquivo(caminho, membro) in concluidos:
+            print('Ja carregado, pulando: {}'.format(descricao))
+            continue
+
+        print('Processando arquivo: {}'.format(descricao))
+
+        if tipo_output == 'csv':
+            verificacao_csv.append(
+                grava_arquivo_csv(output_path, tabela, caminho, membro, totais, csv_iniciados))
+        elif tipo_output == 'sqlite':
+            grava_arquivo_sqlite(conBD, tabela, caminho, membro, modo, totais)
+        print()
 
 
 def cnpj_index(output_path, modo=MODO_RAPIDO):
