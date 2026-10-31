@@ -8,7 +8,13 @@ Também permite consultar empresas ou sócios e gerar a rede de relacionamentos 
 
 ![Grafo](docs/img/grafo.png?raw=true "Grafo")
 
-Projeto irmão: o [cnpjrfb](https://github.com/bjverde/cnpjrfb) é um sistema web em PHP para consultar esses dados. Os dois usam o mesmo modelo de banco ([`modelo_banco`](https://github.com/bjverde/cnpjrfb/tree/master/modelo_banco)), com scripts para MySQL/MariaDB, PostgreSQL, SQLite, SQL Server e Oracle.
+## Projetos irmãos
+
+| Projeto | Linguagem | O que faz |
+| --- | --- | --- |
+| [bjverde/cnpjrfb](https://github.com/bjverde/cnpjrfb) | PHP | Sistema web para consultar esses dados, com carga para MySQL/MariaDB, PostgreSQL, SQLite, SQL Server e Oracle. Os dois projetos usam o mesmo modelo de banco ([`modelo_banco`](https://github.com/bjverde/cnpjrfb/tree/master/modelo_banco)). |
+| [aphonsoar/Receita_Federal_do_Brasil_-_Dados_Publicos_CNPJ](https://github.com/aphonsoar/Receita_Federal_do_Brasil_-_Dados_Publicos_CNPJ) | Python | Baixa os arquivos da RF e faz a carga no PostgreSQL. |
+| [fabioserpa/CNPJ-full](https://github.com/fabioserpa/CNPJ-full) | Python | Projeto original do CNPJ-full, criado por Fabio Serpa para o layout antigo da RF. Este repositório é um fork dele, atualizado para o layout novo. |
 
 ## Documentação
 
