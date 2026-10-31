@@ -22,7 +22,8 @@ Tratamentos feitos na carga:
 * Datas zeradas (`0` ou `00000000`) viram vazio (NULL).
 * `capital_social` é convertido de `1000,00` para número.
 * Representante legal inexistente (`***000000**`) vira vazio.
-* No SQLite, códigos de domínio (município, país, CNAE, natureza, qualificação, motivo, situação etc.) são gravados como inteiros, para que os joins funcionem independentemente de zeros à esquerda. CNPJ, CPF, CEP e telefones continuam como texto.
+* No SQLite, códigos de domínio (município, país, CNAE, natureza, qualificação, motivo etc.) são gravados como inteiros, para que os joins funcionem independentemente de zeros à esquerda. CNPJ, CPF, CEP e telefones continuam como texto.
+* `situacao_cadastral` e `porte_empresa` são texto de 2 dígitos (ex: `02`, `05`), como no dicionário de dados da RF e no modelo do cnpjrfb.
 * O campo `cnae_fiscal_secundaria` é mantido como no arquivo original (códigos separados por vírgula).
 
 # Conversão para CSV ou SQLITE
