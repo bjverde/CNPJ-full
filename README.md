@@ -69,15 +69,38 @@ O [Pandas](https://pandas.pydata.org) usa. É uma extensão que melhora a veloci
 Atente para o fato de que os arquivos disponibilizados pela RF são muito grandes (dezenas de GB descomprimidos).
 Portanto, é bastante provável que seu computador dedique tempo considerável a essa execução.
 
-O script informa no terminal o parcial do processamento de cada arquivo, em blocos de 200.000 linhas. Durante a carga o SQLite roda sem journal e sem sincronização em disco (`PRAGMA journal_mode=OFF`, `synchronous=OFF`), o que acelera a gravação. Se o processo for interrompido, o arquivo pode ficar corrompido: basta rodar a carga de novo, já que as tabelas são recriadas do zero. O tipo de cada arquivo é identificado pelo nome (ex: `...EMPRECSV`, `...ESTABELE`, `...SOCIOCSV` ou `Empresas0.zip`), então os ZIPs podem ser lidos diretamente, sem descompactar.
+O script informa no terminal o parcial do processamento de cada arquivo, em blocos de 200.000 linhas. O tipo de cada arquivo é identificado pelo nome (ex: `...EMPRECSV`, `...ESTABELE`, `...SOCIOCSV` ou `Empresas0.zip`), então os ZIPs podem ser lidos diretamente, sem descompactar.
+
+## Modo rápido x modo seguro (saída sqlite)
+
+Cada arquivo da RF (ex: `Estabelecimentos3.zip`) é gravado em uma única transação e, ao terminar, registrado na tabela `controle_carga` (arquivo, tabela, quantidade de registros, modo, início e fim).
+
+Modo | Como ativar | Como grava | Vantagens | Desvantagens
+---- | ----------- | ---------- | --------- | ------------
+**Rápido** | padrão | Sem journal e sem sincronização em disco (`PRAGMA journal_mode=OFF`, `synchronous=OFF`) | Menos escrita em disco e nenhuma espera por `fsync`. A carga e a criação de índices ficam mais rápidas, principalmente em HD/SSD comum | Se o processo for interrompido (queda de energia, Ctrl+C, erro), o banco pode ficar corrompido e a carga precisa ser refeita do zero
+**Seguro** | `--seguro` | Modo normal do SQLite: journal (`journal_mode=DELETE`) e sincronização em disco a cada transação (`synchronous=FULL`) | Uma interrupção desfaz apenas o arquivo que estava sendo gravado. O banco nunca fica corrompido, e a carga pode ser retomada com `--continuar` | Mais lento: cada página é gravada duas vezes (journal + banco) e o SQLite espera o disco confirmar a gravação
+
+Em ambos os modos, ao final da carga o journal volta ao modo normal, para o uso do banco nas consultas.
+
+Use o modo rápido quando a máquina for estável e você puder simplesmente rodar de novo em caso de falha. Use o `--seguro` em máquinas sujeitas a quedas de energia ou quando a carga demorar muitas horas.
+
+### Retomando uma carga interrompida
+
+`python3 cnpj.py PASTA_COM_ZIPS sqlite PASTA_DE_SAIDA --dir --seguro --continuar`
+
+Com `--continuar`, o script não recria as tabelas e pula os arquivos já concluídos na `controle_carga`. O arquivo que estava sendo gravado na interrupção é carregado de novo desde o início.
+
+Se a carga interrompida estava no modo rápido, o `--continuar` recusa retomar, porque a gravação parcial não pode ser desfeita. Nesse caso, rode a carga do zero.
 
 ## Como executar
-`python3 cnpj.py <caminho entrada> <tipo de saída:csv ou sqlite> <pasta saída> [--dir] [--noindex]`
+`python3 cnpj.py <caminho entrada> <tipo de saída:csv ou sqlite> <pasta saída> [--dir] [--noindex] [--seguro] [--continuar]`
 
 Para processar todos os arquivos, salvar em uma pasta, usá-la como `<caminho entrada>` e especificar o argumento `--dir`. Sem `--dir`, apenas o arquivo informado é carregado.
 
 O argumento opcional `--noindex`, aplicável somente para saída sqlite, indica que **não** devem ser gerados índices automaticamente.
 A criação de índices é muito recomendada e essencial para a funcionalidade de consultas.
+
+Os argumentos opcionais `--seguro` e `--continuar`, aplicáveis somente para saída sqlite, estão explicados em [Modo rápido x modo seguro](#modo-rápido-x-modo-seguro-saída-sqlite).
 
 ## Exemplos
 `python3 cnpj.py "data" sqlite "output" --dir`
@@ -85,6 +108,10 @@ A criação de índices é muito recomendada e essencial para a funcionalidade d
 `python3 cnpj.py "data" csv "output" --dir`
 
 `python3 cnpj.py "data/Empresas0.zip" sqlite "output" --noindex`
+
+`python3 cnpj.py "data" sqlite "output" --dir --seguro`
+
+`python3 cnpj.py "data" sqlite "output" --dir --seguro --continuar`
 
 ## Separando arquivos CSV por estado ou municipio
 
