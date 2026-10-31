@@ -40,6 +40,8 @@ QUALIFICACAO = 'quals'
 # Codigos de dominio sao INTEGER para que o join funcione mesmo quando
 # um lado vem com zeros a esquerda e o outro nao (ex: "0001" x "1").
 # Campos com zeros a esquerda significativos (cnpj, cpf, cep...) sao TEXT.
+# Situacao cadastral e porte da empresa seguem o dicionario de dados da RF
+# (codigos de 2 digitos, ex: "02", "05"), como no modelo do cnpjrfb.
 COLUNAS = {
     EMPRESA: [
         ('cnpj_basico', 'TEXT'),
@@ -47,7 +49,7 @@ COLUNAS = {
         ('natureza_juridica', 'INTEGER'),
         ('qualificacao_responsavel', 'INTEGER'),
         ('capital_social', 'REAL'),
-        ('porte_empresa', 'INTEGER'),
+        ('porte_empresa', 'TEXT'),
         ('ente_federativo_responsavel', 'TEXT'),
     ],
     ESTABELECIMENTO: [
@@ -56,7 +58,7 @@ COLUNAS = {
         ('cnpj_dv', 'TEXT'),
         ('identificador_matriz_filial', 'INTEGER'),
         ('nome_fantasia', 'TEXT'),
-        ('situacao_cadastral', 'INTEGER'),
+        ('situacao_cadastral', 'TEXT'),
         ('data_situacao_cadastral', 'TEXT'),
         ('motivo_situacao_cadastral', 'INTEGER'),
         ('nome_cidade_exterior', 'TEXT'),
@@ -237,6 +239,13 @@ def trata_bloco(tabela, df):
         df['capital_social'] = pd.to_numeric(
             df['capital_social'].str.replace(',', '.', regex=False),
             errors='coerce')
+
+        # Porte com 2 digitos, como no dicionario de dados (00, 01, 03, 05)
+        df['porte_empresa'] = df['porte_empresa'].str.zfill(2)
+
+    elif tabela == ESTABELECIMENTO:
+        # Situacao cadastral com 2 digitos (01, 02, 03, 04, 08)
+        df['situacao_cadastral'] = df['situacao_cadastral'].str.zfill(2)
 
     elif tabela == SOCIOS:
         # Representante legal inexistente vem como cpf zerado
