@@ -61,8 +61,8 @@
 </div>
 <svg width="1200" height="700"></svg>
 
-<script src="http://d3js.org/d3.v4.min.js" type="text/javascript"></script>
-<script src="http://d3js.org/d3-selection-multi.v1.js"></script>
+<script src="https://d3js.org/d3.v4.min.js" type="text/javascript"></script>
+<script src="https://d3js.org/d3-selection-multi.v1.js"></script>
 
 <script type="application/json" id="grafo">
     <!--GRAFO-->
@@ -72,13 +72,14 @@
     var mapMatrizFilial = {"1":"Matriz",
                            "2":"Filial"};
 
-    var mapSituacao = {"01":"Nula",
-                        "02":"Ativa",
-                        "03":"Suspensa",
-                        "04":"Inapta",
-                        "08":"Baixada"};
+    var mapSituacao = {"1":"Nula",
+                        "2":"Ativa",
+                        "3":"Suspensa",
+                        "4":"Inapta",
+                        "8":"Baixada"};
 
     function converteData(data) {
+        data = String(data);
         if (data.length == 8) {
             return data.replace( /(\d{4})(\d{2})(\d{2})/, "$3/$2/$1");
         } else {
@@ -180,7 +181,7 @@
                 if (d.nivel == 0) { return 2; }
             })
             .style("fill-opacity", function (d,i) {
-                if ((d.tipo_pessoa == 1) && (d.situacao != '02')) { return 0.4; }
+                if ((d.tipo_pessoa == 1) && (parseInt(d.situacao_cadastral, 10) != 2)) { return 0.4; }
                 else { return 1.0; }
             })
 
@@ -308,17 +309,17 @@
         tip_html = "<strong>CNPJ:</strong> " + d.cnpj + "<br/>" +
                  "<strong>R.Social:</strong> " + d.razao_social + "<br/>" +
                  "<strong>Nome Fantasia:</strong> " + d.nome_fantasia + "<br/>" +
-                 "<strong>Matriz/Filial:</strong> " + mapMatrizFilial[d.matriz_filial] + "<br/>" +
-                 "<strong>Situação:</strong> " + mapSituacao[d.situacao] + "<br/>" +
-                 "<strong>Data da Situação:</strong> " + converteData(d.data_situacao) + "<br/>" +
-                 "<strong>Início da Atividade em:</strong> " + converteData(d.data_inicio_ativ) + "<br/>" +
-                 "<strong>CNAE Principal:</strong> " + d.cnae_fiscal + "<br/>" +
+                 "<strong>Matriz/Filial:</strong> " + mapMatrizFilial[d.identificador_matriz_filial] + "<br/>" +
+                 "<strong>Situação:</strong> " + mapSituacao[parseInt(d.situacao_cadastral, 10)] + "<br/>" +
+                 "<strong>Data da Situação:</strong> " + converteData(d.data_situacao_cadastral) + "<br/>" +
+                 "<strong>Início da Atividade em:</strong> " + converteData(d.data_inicio_atividade) + "<br/>" +
+                 "<strong>CNAE Principal:</strong> " + d.cnae_fiscal_principal + " - " + d.cnae_fiscal_principal_descricao + "<br/>" +
                  "<strong>UF:</strong> " + d.uf + "<br/>" +
-                 "<strong>Município:</strong> " + d.municipio + "<br/>";
+                 "<strong>Município:</strong> " + d.municipio_descricao + "<br/>";
 
-        if (d.sit_especial != "") {
-            tip_html += "<strong>Sit. Especial:</strong> " + d.sit_especial + "<br/>" +
-                       "<strong>Data da Sit. Especial:</strong> " + converteData(d.data_sit_especial) + "<br/>";
+        if (d.situacao_especial != "") {
+            tip_html += "<strong>Sit. Especial:</strong> " + d.situacao_especial + "<br/>" +
+                       "<strong>Data da Sit. Especial:</strong> " + converteData(d.data_situacao_especial) + "<br/>";
         }
 
         tooltip.html(tip_html);
@@ -352,4 +353,4 @@
 </script>
 
 </body>
-</html>
+</html

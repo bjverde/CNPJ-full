@@ -4,7 +4,7 @@ from header_dict import get_header_index
 
 location = os.getenv('FILES_LOCATION')
 
-file = 'empresas.csv'
+file = 'estabelecimento.csv'
 
 with codecs.open(location + file, 'r+', 'utf-8') as empresas:
 

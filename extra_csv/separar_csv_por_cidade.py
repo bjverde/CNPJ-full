@@ -4,7 +4,7 @@ from header_dict import get_header_index
 
 location = os.getenv('FILES_LOCATION')
 
-file = 'empresas.csv'
+file = 'estabelecimento.csv'
 
 with codecs.open(location + file,'r+','utf-8') as empresas:
 
@@ -30,10 +30,6 @@ with codecs.open(location + file,'r+','utf-8') as empresas:
             uf_file = open(location + 'UFs/' + uf + "/" + municipio + ".csv", "a+")
         except:
             uf_file = open(location + 'UFs/' + uf + "/" + municipio + ".csv", "w+")
-
-        line = '"' + '","'.join(empresa) + '"\n'
-
-        uf_file.writelines(line)
 
         try:
             uf_file.writelines('"' + '","'.join(empresa) + '"\n')

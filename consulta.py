@@ -44,11 +44,12 @@ def consulta(tipo_consulta, objeto_consulta, qualificacoes, path_BD, nivel_max, 
                 os.mkdir(path_output)
 
             if csv:
-                df_nodes = pd.DataFrame(columns=colunas_csv).append(rede.dataframe_pessoas(), sort=False)
+                # Garante todas as colunas configuradas, mesmo que ausentes nos nodes
+                df_nodes = rede.dataframe_pessoas().reindex(columns=colunas_csv)
 
                 # Verifica se teve ao menos um registro encontrado
                 if len(df_nodes) > 0:
-                    df_nodes[colunas_csv].to_csv(os.path.join(path_output, 'pessoas.csv'), index_label='id', sep=csv_sep)
+                    df_nodes.to_csv(os.path.join(path_output, 'pessoas.csv'), index_label='id', sep=csv_sep)
 
                     df_edges = rede.dataframe_vinculos()
                     if len(df_edges) > 0:
