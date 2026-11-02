@@ -54,7 +54,7 @@ Arquivo | Conteúdo
 `pessoas.csv` | Um nó por linha: coluna `id` mais as colunas de `COLUNAS_CSV` (tipo de pessoa, nível, CNPJ/CPF, nome, dados cadastrais e descrições de município, CNAE, natureza jurídica etc.)
 `vinculos.csv` | Uma aresta por linha: `source` (sócio ou filial), `target` (empresa ou matriz), `tipo` (`socio` ou `filial`), `cod_qualificacao`, `qualificacao` e `data_entrada`
 `rede.graphml` / `rede.gexf` | O grafo completo, com todos os atributos dos nós e vínculos
-`grafo.html` | Visualização interativa (d3.js). Empresas inativas aparecem esmaecidas, e o item consultado tem borda vermelha
+`grafo.html` | Visualização interativa (d3.js). Empresas inativas aparecem esmaecidas, e o item consultado tem borda vermelha. O arquivo é autocontido (traz o d3.js v7 embutido) e abre sem internet
 `conexoes.csv` | Só com `--conexoes`: pessoa A, pessoa B e o caminho entre elas
 
 ## Configuração (`cnpj_full/config.py`)

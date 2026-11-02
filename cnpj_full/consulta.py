@@ -16,7 +16,26 @@ else:
     import config
     from rede_cnpj import RedeCNPJ
 
-PATH_TEMPLATE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'viz', 'template.html')
+PATH_VIZ = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'viz')
+PATH_TEMPLATE = os.path.join(PATH_VIZ, 'template.html')
+# d3.js embutido no grafo.html para a visualizacao funcionar sem internet
+PATH_D3 = os.path.join(PATH_VIZ, 'd3.v7.min.js')
+
+
+def gera_html_grafo(grafo_json):
+    """Monta o grafo.html autocontido: template + d3.js + dados do grafo."""
+    with open(PATH_TEMPLATE, 'r', encoding='utf-8') as template:
+        str_html = template.read()
+    with open(PATH_D3, 'r', encoding='utf-8') as d3:
+        str_d3 = d3.read()
+
+    # "</" dentro do JSON fecharia a tag <script> antes da hora (ex: nome com "</script>")
+    str_grafo = json.dumps(grafo_json).replace('</', '<\\/')
+
+    # split/join em vez de replace encadeado: o conteudo inserido nunca e reprocessado
+    antes_d3, depois_d3 = str_html.split('<!--D3-->', 1)
+    antes_grafo, depois_grafo = depois_d3.split('<!--GRAFO-->', 1)
+    return antes_d3 + str_d3 + antes_grafo + str_grafo + depois_grafo
 
 def consulta(tipo_consulta, objeto_consulta, qualificacoes, path_BD, nivel_max, path_output, 
              csv=False, colunas_csv=None, csv_sep=',', graphml=False, gexf=False, viz=False, 
@@ -73,9 +92,8 @@ def consulta(tipo_consulta, objeto_consulta, qualificacoes, path_BD, nivel_max, 
 
             if viz:
                 try:
-                    with open(PATH_TEMPLATE, 'r', encoding='utf-8') as template:
-                        str_html = template.read().replace('<!--GRAFO-->', json.dumps(rede.json()))
-                        
+                    str_html = gera_html_grafo(rede.json())
+
                     path_html = os.path.join(path_output, 'grafo.html')
                     with open(path_html, 'w', encoding='utf-8') as html:
                         html.write(str_html)

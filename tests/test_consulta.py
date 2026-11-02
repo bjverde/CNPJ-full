@@ -77,3 +77,20 @@ def test_consulta_gera_saidas(zips, banco, tmp_path, monkeypatch):
     inicio = html.index('<script type="application/json" id="grafo">') + len('<script type="application/json" id="grafo">')
     grafo = json.loads(html[inicio:html.index('</script>', inicio)])
     assert 'links' in grafo and len(grafo['links']) == 6
+
+    # o grafo.html e autocontido: d3 embutido, nenhum script carregado da internet
+    assert '<script src=' not in html
+    assert 'd3js.org v7' in html
+
+
+def test_grafo_html_funciona_sem_internet_e_escapa_script():
+    grafo = {'nodes': [{'id': 'PF_1', 'nome': 'NOME </script><script>alert(1)</script>'}],
+             'links': []}
+    html = consulta.gera_html_grafo(grafo)
+
+    assert '<script src=' not in html
+    assert '<!--D3-->' not in html and '<!--GRAFO-->' not in html
+    # o nome nao pode fechar a tag do JSON
+    inicio = html.index('<script type="application/json" id="grafo">') + len('<script type="application/json" id="grafo">')
+    lido = json.loads(html[inicio:html.index('</script>', inicio)])
+    assert lido == grafo
