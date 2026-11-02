@@ -1,6 +1,7 @@
 import os
 import sys
 import json
+import hashlib
 import subprocess
 
 import pandas as pd
@@ -37,14 +38,153 @@ def gera_html_grafo(grafo_json):
     antes_grafo, depois_grafo = depois_d3.split('<!--GRAFO-->', 1)
     return antes_d3 + str_d3 + antes_grafo + str_grafo + depois_grafo
 
+# Arquivo gravado na pasta de saida com a chave da consulta que gerou os arquivos
+ARQUIVO_CACHE = 'cache.json'
+VERSAO_CACHE = 1
+
+
+def _hash_arquivo(path):
+    h = hashlib.sha256()
+    with open(path, 'rb') as f:
+        for bloco in iter(lambda: f.read(1024 * 1024), b''):
+            h.update(bloco)
+    return h.hexdigest()
+
+
+def versao_base(conBD, path_BD):
+    """Identifica a carga da base. Muda quando a base e recarregada.
+
+    Usa o fim da ultima carga registrada na controle_carga (gravada pelo cnpj.py).
+    Se a tabela nao existir, usa data de modificacao e tamanho do arquivo.
+    """
+    try:
+        pendentes, arquivos, ultima = conBD.execute(
+            'SELECT SUM(fim IS NULL), COUNT(*), MAX(fim) FROM controle_carga').fetchone()
+        if arquivos and not pendentes:
+            return 'carga:{}:{}'.format(arquivos, ultima)
+    except sqlite3.Error:
+        pass
+    info = os.stat(path_BD)
+    return 'arquivo:{}:{}'.format(int(info.st_mtime), info.st_size)
+
+
+def _normaliza_objeto(tipo_consulta, objeto_consulta):
+    if tipo_consulta == 'cnpj':
+        return objeto_consulta.replace('.', '').replace('/', '').replace('-', '').strip().zfill(14)
+    if tipo_consulta == 'nome_socio':
+        return objeto_consulta.strip().upper()
+    # CPF sempre mascarado na chave: o cache.json nunca guarda o CPF completo
+    # e "12345678901" e "***456789**" contam como a mesma consulta
+    if tipo_consulta == 'cpf':
+        return mascara_cpf(objeto_consulta.strip().replace('.', '').replace('-', ''))
+    if tipo_consulta == 'cpf_nome':
+        objeto_consulta = objeto_consulta.strip()
+        return mascara_cpf(objeto_consulta[:11]) + objeto_consulta[11:].strip().upper()
+    if tipo_consulta == 'file':
+        # o conteudo do arquivo e que define a consulta, nao o nome
+        return 'sha256:' + _hash_arquivo(objeto_consulta)
+    return objeto_consulta.strip()
+
+
+def chave_cache(tipo_consulta, objeto_consulta, qualificacoes, nivel_max, versao,
+                csv, colunas_csv, csv_sep, graphml, gexf, viz, path_conexoes):
+    """Tudo o que muda o resultado: criterio de pesquisa, nivel, qualificacoes,
+    carga da base e saidas pedidas."""
+    if isinstance(qualificacoes, dict):
+        qualificacoes = sorted(qualificacoes)
+    return {
+        'versao_cache': VERSAO_CACHE,
+        'tipo_consulta': tipo_consulta,
+        'objeto_consulta': _normaliza_objeto(tipo_consulta, objeto_consulta),
+        'nivel': int(nivel_max),
+        'qualificacoes': qualificacoes,
+        'base': versao,
+        'saidas': {
+            'csv': bool(csv), 'colunas_csv': list(colunas_csv) if (csv and colunas_csv) else None,
+            'csv_sep': csv_sep if csv else None,
+            'graphml': bool(graphml), 'gexf': bool(gexf), 'viz': bool(viz),
+            'conexoes': _hash_arquivo(path_conexoes) if path_conexoes else None,
+        },
+    }
+
+
+def le_cache(path_output):
+    try:
+        with open(os.path.join(path_output, ARQUIVO_CACHE), 'r', encoding='utf-8') as f:
+            return json.load(f)
+    except (OSError, ValueError):
+        return None
+
+
+def cache_valido(path_output, chave):
+    """True quando a pasta ja tem o resultado desta mesma consulta, com todos os arquivos."""
+    gravado = le_cache(path_output)
+    if not gravado or gravado.get('chave') != chave:
+        return False
+    return all(os.path.exists(os.path.join(path_output, nome)) for nome in gravado.get('arquivos', []))
+
+
+def _limpa_cache(path_output):
+    """Apaga o cache.json e os arquivos que ele lista, para nao misturar resultados."""
+    gravado = le_cache(path_output)
+    if gravado:
+        for nome in gravado.get('arquivos', []):
+            caminho = os.path.join(path_output, os.path.basename(nome))
+            if os.path.isfile(caminho):
+                os.remove(caminho)
+    caminho_cache = os.path.join(path_output, ARQUIVO_CACHE)
+    if os.path.exists(caminho_cache):
+        os.remove(caminho_cache)
+
+
+def _grava_cache(path_output, chave):
+    arquivos = [nome for nome in ['pessoas.csv', 'vinculos.csv', 'rede.graphml', 'rede.gexf',
+                                  'grafo.html', 'conexoes.csv']
+                if os.path.exists(os.path.join(path_output, nome))]
+    with open(os.path.join(path_output, ARQUIVO_CACHE), 'w', encoding='utf-8') as f:
+        json.dump({'chave': chave, 'arquivos': arquivos}, f, ensure_ascii=False, indent=2)
+
+
+def _abre_navegador(path_output):
+    if config.PATH_NAVEGADOR:
+        subprocess.Popen([config.PATH_NAVEGADOR, os.path.abspath(os.path.join(path_output, 'grafo.html'))])
+
+
 def consulta(tipo_consulta, objeto_consulta, qualificacoes, path_BD, nivel_max, path_output, 
              csv=False, colunas_csv=None, csv_sep=',', graphml=False, gexf=False, viz=False, 
-             path_conexoes=None):
+             path_conexoes=None, cache=False):
+    """Executa a consulta e grava as saidas em path_output.
+
+    Com cache=True, se path_output ja tiver o resultado da mesma consulta (mesmo
+    criterio, nivel, qualificacoes, saidas e carga da base), os arquivos sao
+    reaproveitados sem consultar o banco de novo. Retorna True nesse caso.
+    """
+
+    if not os.path.isfile(path_BD):
+        # sqlite3.connect criaria um banco vazio no lugar
+        print('Nao foi possivel encontrar ou conectar ao BD {}'.format(path_BD))
+        return False
 
     try:
         conBD = sqlite3.connect(path_BD)
 
         try:
+            chave = None
+            if cache:
+                chave = chave_cache(tipo_consulta, objeto_consulta, qualificacoes, nivel_max,
+                                    versao_base(conBD, path_BD), csv, colunas_csv, csv_sep,
+                                    graphml, gexf, viz, path_conexoes)
+                if cache_valido(path_output, chave):
+                    print('Resultado reaproveitado do cache na pasta "{}".'.format(path_output))
+                    if viz:
+                        _abre_navegador(path_output)
+                    return True
+
+            if os.path.isdir(path_output):
+                # resultado antigo sai antes de gerar o novo; se a consulta falhar no meio,
+                # nao fica um cache.json valido apontando para arquivos incompletos
+                _limpa_cache(path_output)
+
             rede = RedeCNPJ(conBD, nivel_max=nivel_max, qualificacoes=qualificacoes)
 
             if tipo_consulta == 'file':
@@ -68,7 +208,7 @@ def consulta(tipo_consulta, objeto_consulta, qualificacoes, path_BD, nivel_max, 
                 consulta_item(rede, tipo_consulta, objeto_consulta)
 
             if not os.path.exists(path_output):
-                os.mkdir(path_output)
+                os.makedirs(path_output)
 
             if csv:
                 # Garante todas as colunas configuradas, mesmo que ausentes nos nodes
@@ -98,8 +238,7 @@ def consulta(tipo_consulta, objeto_consulta, qualificacoes, path_BD, nivel_max, 
                     with open(path_html, 'w', encoding='utf-8') as html:
                         html.write(str_html)
 
-                    if config.PATH_NAVEGADOR:
-                        subprocess.Popen([config.PATH_NAVEGADOR, os.path.abspath(path_html)])
+                    _abre_navegador(path_output)
 
                 except Exception as e:
                     print('Não foi possível gerar a visualização. [{}]'.format(e))
@@ -137,12 +276,17 @@ Arquivo de vinculos precisa ter pelo menos duas colunas, contendo a identificaca
 No caso de pessoa fisica, informar cpf seguido imediatamente do nome (ex: "***123456**NOME COMPLETO DA PESSOA").
                     ''')
 
+            if cache:
+                _grava_cache(path_output, chave)
+
             print('Consulta finalizada. Verifique o(s) arquivo(s) de saida na pasta "{}".'.format(path_output))
 
         except Exception as e:
             print('Um erro ocorreu:\n{}'.format(e))
         finally:
             conBD.close()
+
+        return False
 
     except:
         print('Nao foi possivel encontrar ou conectar ao BD {}'.format(path_BD))
@@ -163,7 +307,8 @@ def consulta_item(rede, tipo_item, item):
 
     elif tipo_item == 'cpf_nome':
         cpf = mascara_cpf(item[:11])
-        nome = item[11:]
+        # nomes na base da RF sao em maiusculas
+        nome = item[11:].strip().upper()
 
         #print('Consultando socio com cpf (mascarado) {} e nome {}'.format(cpf,nome))
         rede.insere_pessoa(2,(cpf,nome))
@@ -186,7 +331,7 @@ def help():
     print('''
 Uso: python consulta.py <tipo consulta> <item|arquivo input> <caminho output> 
      [--base <arquivo sqlite>] [--nivel <int>] 
-     [--csv] [--graphml] [--gexf] [--viz]
+     [--csv] [--graphml] [--gexf] [--viz] [--cache]
 
 Argumentos obrigatorios:
   <tipo consulta>: Especifica o tipo de item a ser procurado.
@@ -233,10 +378,17 @@ Argumentos opcionais:
               As duas primeiras com o par de pessoas e a terceira coluna
               com a conexao entre elas, ou a string "SEM CONEXAO".
 
+  --cache: Reaproveita o resultado ja gravado em <caminho output> quando a
+           consulta e a mesma: tipo e item pesquisado, nivel, qualificacoes,
+           saidas pedidas e carga da base (controle_carga). Se a base for
+           recarregada ou algo mudar, a consulta e refeita e o cache atualizado.
+           Os dados da consulta ficam em <caminho output>/cache.json.
+
 Exemplos: 
   python consulta.py cnpj 00000000000191 folder --nivel 1 --viz
   python consulta.py file data/input.csv pasta --csv --gexf
   python consulta.py nome_socio "FULANO SICRANO" output --graphml --viz
+  python consulta.py cnpj 00000000000191 graficos/00000000000191_n3 --nivel 3 --viz --cache
     ''')
 
 def main():
@@ -250,6 +402,7 @@ def main():
     nivel = config.NIVEL_MAX_DEFAULT
     path_bd = config.PATH_BD
     path_conexoes = None
+    cache = False
 
     # python consulta.py <tipo consulta> <item|arquivo input> <caminho output> 
     # [--base <arquivo sqlite>] [--nivel <int>] [--csv] [--graphml] [--gexf] [--viz]
@@ -285,6 +438,9 @@ def main():
                 elif opcional == '--viz':
                     viz = True
                     i_argv += 1
+                elif opcional == '--cache':
+                    cache = True
+                    i_argv += 1
                 elif opcional == '--conexoes':
                     path_conexoes = sys.argv[i_argv+1]
                     i_argv += 2
@@ -305,7 +461,8 @@ def main():
                  graphml=graphml,
                  gexf=gexf,
                  viz=viz,
-                 path_conexoes=path_conexoes)
+                 path_conexoes=path_conexoes,
+                 cache=cache)
 
 if __name__ == '__main__':
     main()

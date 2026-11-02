@@ -11,7 +11,7 @@ Como funciona a rede no layout novo:
 
 ```
 python3 cnpj_full/consulta.py <tipo consulta> <item|arquivo input> <pasta saída> [--base <arquivo sqlite>]
-                    [--nivel <int>] [--csv] [--graphml] [--gexf] [--viz] [--conexoes <arquivo>]
+                    [--nivel <int>] [--csv] [--graphml] [--gexf] [--viz] [--conexoes <arquivo>] [--cache]
 ```
 
 ## Tipos de consulta
@@ -21,7 +21,7 @@ Tipo | Busca
 `cnpj` | Empresa pelo CNPJ, com ou sem pontuação (ex: `11.111.111/0001-91`)
 `nome_socio` | Sócios pelo nome completo (maiúsculas e minúsculas tanto faz)
 `cpf` | Sócios pelo CPF. Como a RF só publica 6 dígitos, pode trazer pessoas diferentes
-`cpf_nome` | Sócio pelo CPF seguido do nome, sem espaço (ex: `***123456**FULANO DE TAL`)
+`cpf_nome` | Sócio pelo CPF seguido do nome, sem espaço (ex: `***123456**FULANO DE TAL`). O CPF pode ser completo (é mascarado antes da busca) e o nome em maiúsculas ou minúsculas
 `file` | Vários itens de um arquivo. Com uma coluna, cada linha é um CNPJ. Com duas colunas separadas por `;`, a primeira é o tipo acima e a segunda, o item
 
 ## Argumentos opcionais
@@ -35,6 +35,7 @@ Argumento | Descrição
 `--gexf` | Gera `rede.gexf`, que pode ser aberto no [Gephi](https://gephi.org/)
 `--viz` | Gera `grafo.html`, um grafo interativo para abrir no navegador. Se `PATH_NAVEGADOR` estiver no `cnpj_full/config.py`, o navegador abre sozinho
 `--conexoes` | Arquivo com pares de pessoas (CNPJ ou CPF mascarado + nome), um par por linha, separados por `;`. Gera `conexoes.csv` com o caminho entre cada par na rede encontrada, ou `SEM CONEXAO`
+`--cache` | Reaproveita o resultado já gravado na pasta de saída quando a consulta é a mesma, sem consultar o banco de novo. Veja [Cache](#cache) e os [exemplos](cache.md)
 
 Exemplos:
 
@@ -43,6 +44,7 @@ python3 cnpj_full/consulta.py cnpj 00000000000191 resultado --nivel 1 --viz
 python3 cnpj_full/consulta.py file entrada.csv resultado --csv --gexf
 python3 cnpj_full/consulta.py nome_socio "FULANO DE TAL" resultado --graphml --viz
 python3 cnpj_full/consulta.py cnpj 00000000000191 resultado --nivel 3 --conexoes pares.csv
+python3 cnpj_full/consulta.py cnpj 00000000000191 graficos/00000000000191_n3 --nivel 3 --viz --cache
 ```
 
 **Atenção:** use a profundidade com moderação. Dependendo das empresas ou pessoas, a quantidade de relacionados cresce exponencialmente e gera muitas consultas no banco. Nível 3 é um bom parâmetro.
@@ -56,6 +58,25 @@ Arquivo | Conteúdo
 `rede.graphml` / `rede.gexf` | O grafo completo, com todos os atributos dos nós e vínculos
 `grafo.html` | Visualização interativa (d3.js). Empresas inativas aparecem esmaecidas, e o item consultado tem borda vermelha. O arquivo é autocontido (traz o d3.js v7 embutido) e abre sem internet
 `conexoes.csv` | Só com `--conexoes`: pessoa A, pessoa B e o caminho entre elas
+`cache.json` | Só com `--cache`: a chave da consulta que gerou os arquivos da pasta e a lista desses arquivos
+
+## Cache
+
+Com `--cache`, a consulta grava um `cache.json` na pasta de saída. Na próxima vez que a mesma consulta for pedida para a mesma pasta, os arquivos são reaproveitados e o banco não é consultado de novo (a mensagem é `Resultado reaproveitado do cache`).
+
+A consulta é refeita, e o cache atualizado, quando muda qualquer item da chave:
+
+* tipo de consulta e item pesquisado (CNPJ com ou sem pontuação, CPF completo ou mascarado e nome em maiúsculas ou minúsculas contam como o mesmo item; o CPF é gravado sempre mascarado no `cache.json`; no tipo `file`, vale o conteúdo do arquivo);
+* nível (`--nivel`);
+* qualificações consideradas (`QUALIFICACOES`);
+* saídas pedidas (`--csv`, `--graphml`, `--gexf`, `--viz`, `--conexoes`, colunas e separador do CSV);
+* carga da base: data de fim e quantidade de arquivos da `controle_carga`. Se a tabela não existir, vale a data de modificação e o tamanho do arquivo SQLite. Assim, depois de carregar os dados de um mês novo, o grafo é refeito sozinho.
+
+Se algum arquivo listado no `cache.json` tiver sido apagado, a consulta também é refeita. Para forçar uma consulta nova, basta apagar o `cache.json` ou rodar sem `--cache`.
+
+Como a pasta guarda o resultado de uma consulta por vez, use uma pasta por consulta que deve ficar em cache, por exemplo com o item e o nível no nome (`graficos/<cnpj>_n3`). Consultas diferentes na mesma pasta se substituem.
+
+Exemplos passo a passo, com o conteúdo do `cache.json` e as pastas geradas, em [Cache do grafo: exemplos](cache.md).
 
 ## Configuração (`cnpj_full/config.py`)
 
