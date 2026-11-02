@@ -9,6 +9,8 @@ cnpj_full/              Código Python
   rede_cnpj.py          Classe RedeCNPJ (navegação no banco e montagem do grafo)
   config.py             Configurações das consultas
   viz/template.html     Template da visualização interativa (d3.js)
+  viz/d3.v7.min.js      d3.js v7.9.0 embutido no grafo.html (funciona sem internet)
+  viz/LICENSE-d3.txt    Licença do d3.js (ISC)
   extra_csv/            Scripts para separar o estabelecimento.csv por UF ou município
 docs/                   Documentação
   carga.md              Download dos arquivos e carga
@@ -47,5 +49,4 @@ Melhorias planejadas:
 * Tabela própria para os CNAEs secundários (uma linha por CNAE), para buscar empresas por atividade secundária.
 * Carga direta em MySQL/MariaDB e PostgreSQL, usando os modelos do cnpjrfb.
 * Trocar a leitura manual de argumentos por `argparse`.
-* Atualizar o d3.js da visualização (hoje na versão 4).
 * Tabela de tempo e tamanho da carga completa, a partir de uma carga real.
