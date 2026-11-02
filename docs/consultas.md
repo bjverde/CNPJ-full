@@ -35,7 +35,7 @@ Argumento | Descrição
 `--gexf` | Gera `rede.gexf`, que pode ser aberto no [Gephi](https://gephi.org/)
 `--viz` | Gera `grafo.html`, um grafo interativo para abrir no navegador. Se `PATH_NAVEGADOR` estiver no `cnpj_full/config.py`, o navegador abre sozinho
 `--conexoes` | Arquivo com pares de pessoas (CNPJ ou CPF mascarado + nome), um par por linha, separados por `;`. Gera `conexoes.csv` com o caminho entre cada par na rede encontrada, ou `SEM CONEXAO`
-`--cache` | Reaproveita o resultado já gravado na pasta de saída quando a consulta é a mesma, sem consultar o banco de novo. Veja [Cache](#cache)
+`--cache` | Reaproveita o resultado já gravado na pasta de saída quando a consulta é a mesma, sem consultar o banco de novo. Veja [Cache](#cache) e os [exemplos](cache.md)
 
 Exemplos:
 
@@ -75,6 +75,8 @@ A consulta é refeita, e o cache atualizado, quando muda qualquer item da chave:
 Se algum arquivo listado no `cache.json` tiver sido apagado, a consulta também é refeita. Para forçar uma consulta nova, basta apagar o `cache.json` ou rodar sem `--cache`.
 
 Como a pasta guarda o resultado de uma consulta por vez, use uma pasta por consulta que deve ficar em cache, por exemplo com o item e o nível no nome (`graficos/<cnpj>_n3`). Consultas diferentes na mesma pasta se substituem.
+
+Exemplos passo a passo, com o conteúdo do `cache.json` e as pastas geradas, em [Cache do grafo: exemplos](cache.md).
 
 ## Configuração (`cnpj_full/config.py`)
 

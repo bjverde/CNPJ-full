@@ -13,6 +13,7 @@ cnpj_full/              Código Python
   viz/LICENSE-d3.txt    Licença do d3.js (ISC)
   extra_csv/            Scripts para separar o estabelecimento.csv por UF ou município
 docs/                   Documentação
+  cache.md              Exemplos do cache do grafo (--cache)
   carga.md              Download dos arquivos e carga
   consultas.md          Consultas, grafo e CPF/LGPD
   desenvolvimento.md    Estrutura, testes e roteiro

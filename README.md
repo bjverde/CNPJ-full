@@ -23,6 +23,7 @@ Este repositório é uma atualização do [CNPJ-full do Fabio Serpa](https://git
 * [Início rápido](#início-rápido) e [instalação](#instalação), logo abaixo
 * [Carga](docs/carga.md): download dos arquivos da RF, conversão para SQLite/CSV, modos rápido e seguro, verificação da carga e separação por UF/município
 * [Consultas e grafo](docs/consultas.md): tipos de consulta, arquivos gerados, configuração, uso da classe `RedeCNPJ` e CPF mascarado/LGPD
+* [Cache do grafo](docs/cache.md): exemplos do `--cache`, como o resultado fica no disco e quando é refeito
 * [Desenvolvimento](docs/desenvolvimento.md): estrutura de pastas, testes e roteiro
 * [Dicionário de dados da Receita Federal](docs/cnpj-metadados.pdf)
 
