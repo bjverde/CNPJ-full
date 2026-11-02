@@ -93,3 +93,18 @@ def test_base_inexistente_nao_cria_arquivo(tmp_path):
     caminho = str(tmp_path / 'nao_existe.db')
     assert roda(caminho, str(tmp_path / 'grafo')) is False
     assert not os.path.exists(caminho)
+
+
+def test_cpf_nome_mascarado_e_maiusculas_sao_a_mesma_consulta(caminho_bd, tmp_path, monkeypatch):
+    saida = str(tmp_path / 'grafo')
+    roda_cpf = lambda item: consulta.consulta('cpf_nome', item, config.QUALIFICACOES, caminho_bd, 3,
+                                              saida, viz=True, cache=True)
+    assert roda_cpf('11165432100MARIA SOUZA') is False
+    with open(os.path.join(saida, 'cache.json'), encoding='utf-8') as f:
+        chave = json.load(f)['chave']
+    # o CPF completo nao fica gravado em disco
+    assert chave['objeto_consulta'] == '***654321**MARIA SOUZA'
+
+    proibe_consulta_no_banco(monkeypatch)
+    assert roda_cpf('***654321**maria souza') is True
+

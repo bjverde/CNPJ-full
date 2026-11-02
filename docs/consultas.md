@@ -21,7 +21,7 @@ Tipo | Busca
 `cnpj` | Empresa pelo CNPJ, com ou sem pontuação (ex: `11.111.111/0001-91`)
 `nome_socio` | Sócios pelo nome completo (maiúsculas e minúsculas tanto faz)
 `cpf` | Sócios pelo CPF. Como a RF só publica 6 dígitos, pode trazer pessoas diferentes
-`cpf_nome` | Sócio pelo CPF seguido do nome, sem espaço (ex: `***123456**FULANO DE TAL`)
+`cpf_nome` | Sócio pelo CPF seguido do nome, sem espaço (ex: `***123456**FULANO DE TAL`). O CPF pode ser completo (é mascarado antes da busca) e o nome em maiúsculas ou minúsculas
 `file` | Vários itens de um arquivo. Com uma coluna, cada linha é um CNPJ. Com duas colunas separadas por `;`, a primeira é o tipo acima e a segunda, o item
 
 ## Argumentos opcionais
@@ -66,7 +66,7 @@ Com `--cache`, a consulta grava um `cache.json` na pasta de saída. Na próxima 
 
 A consulta é refeita, e o cache atualizado, quando muda qualquer item da chave:
 
-* tipo de consulta e item pesquisado (CNPJ com ou sem pontuação e nome em maiúsculas ou minúsculas contam como o mesmo item; no tipo `file`, vale o conteúdo do arquivo);
+* tipo de consulta e item pesquisado (CNPJ com ou sem pontuação, CPF completo ou mascarado e nome em maiúsculas ou minúsculas contam como o mesmo item; o CPF é gravado sempre mascarado no `cache.json`; no tipo `file`, vale o conteúdo do arquivo);
 * nível (`--nivel`);
 * qualificações consideradas (`QUALIFICACOES`);
 * saídas pedidas (`--csv`, `--graphml`, `--gexf`, `--viz`, `--conexoes`, colunas e separador do CSV);

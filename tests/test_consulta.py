@@ -94,3 +94,8 @@ def test_grafo_html_funciona_sem_internet_e_escapa_script():
     inicio = html.index('<script type="application/json" id="grafo">') + len('<script type="application/json" id="grafo">')
     lido = json.loads(html[inicio:html.index('</script>', inicio)])
     assert lido == grafo
+
+
+def test_cpf_nome_em_minusculas_encontra_o_socio(rede):
+    consulta.consulta_item(rede, 'cpf_nome', '***654321**maria souza')
+    assert '***654321**MARIA SOUZA' in rede.G

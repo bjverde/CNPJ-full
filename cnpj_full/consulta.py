@@ -73,6 +73,13 @@ def _normaliza_objeto(tipo_consulta, objeto_consulta):
         return objeto_consulta.replace('.', '').replace('/', '').replace('-', '').strip().zfill(14)
     if tipo_consulta == 'nome_socio':
         return objeto_consulta.strip().upper()
+    # CPF sempre mascarado na chave: o cache.json nunca guarda o CPF completo
+    # e "12345678901" e "***456789**" contam como a mesma consulta
+    if tipo_consulta == 'cpf':
+        return mascara_cpf(objeto_consulta.strip().replace('.', '').replace('-', ''))
+    if tipo_consulta == 'cpf_nome':
+        objeto_consulta = objeto_consulta.strip()
+        return mascara_cpf(objeto_consulta[:11]) + objeto_consulta[11:].strip().upper()
     if tipo_consulta == 'file':
         # o conteudo do arquivo e que define a consulta, nao o nome
         return 'sha256:' + _hash_arquivo(objeto_consulta)
@@ -300,7 +307,8 @@ def consulta_item(rede, tipo_item, item):
 
     elif tipo_item == 'cpf_nome':
         cpf = mascara_cpf(item[:11])
-        nome = item[11:]
+        # nomes na base da RF sao em maiusculas
+        nome = item[11:].strip().upper()
 
         #print('Consultando socio com cpf (mascarado) {} e nome {}'.format(cpf,nome))
         rede.insere_pessoa(2,(cpf,nome))
