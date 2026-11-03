@@ -7,10 +7,13 @@ on:
 
 jobs:
   testes:
-    runs-on: ubuntu-latest
+    name: ${{ matrix.os }} / Python ${{ matrix.python-version }}
+    runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
+        # ubuntu-24.04 fixo: o ubuntu-latest novo nao tem mais o Python 3.9
+        os: [ubuntu-24.04, windows-latest]
         # 3.9 cobre pandas 2.x; 3.12 e 3.13 cobrem as versoes mais recentes
         python-version: ['3.9', '3.12', '3.13']
 
@@ -30,3 +33,29 @@ jobs:
 
       - name: Roda os testes
         run: python -m pytest -v tests
+
+      # Mesmos comandos do roteiro de teste em docs/ambientes.md
+      - name: Roteiro - consulta no banco de teste
+        run: python cnpj_full/consulta.py cnpj 10000001000190 resultado --nivel 3 --viz --csv
+
+      - name: Roteiro - gera os ZIPs de teste e faz a carga
+        run: |
+          python dados_teste/gerar_banco_teste.py --saida saida_teste/cnpj_teste.db --zips dados_zips
+          python cnpj_full/cnpj.py dados_zips sqlite saida_carga --dir
+          python cnpj_full/consulta.py cnpj 20000001000143 resultado2 --base saida_carga/CNPJ_full.db --viz
+
+  docker:
+    name: Docker (volume no Linux)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build da imagem
+        run: docker compose build
+
+      - name: Roteiro no Docker com o usuario do host
+        run: |
+          printf 'CNPJ_UID=%s\nCNPJ_GID=%s\n' "$(id -u)" "$(id -g)" > .env
+          docker compose run --rm cnpj-full python cnpj_full/consulta.py cnpj 10000001000190 resultado --viz --csv
+          test -s resultado/grafo.html
+          test "$(stat -c %u resultado/grafo.html)" = "$(id -u)"

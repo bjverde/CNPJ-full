@@ -1,0 +1,9 @@
+# Arquivos binarios: o git nao deve converter quebras de linha
+*.db binary
+*.zip binary
+*.pdf binary
+*.png binary
+# Scripts de shell e arquivos do Docker sempre com LF (mesmo clonando no Windows)
+*.sh text eol=lf
+Dockerfile text eol=lf
+*.yml text eol=lf

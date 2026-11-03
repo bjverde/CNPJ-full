@@ -1,0 +1,21 @@
+# Docker do CNPJ-full. Uso (na raiz do projeto):
+#   docker compose build
+#   docker compose run --rm cnpj-full python cnpj_full/consulta.py cnpj 10000001000190 resultado --viz
+# Detalhes, Windows e Linux: docs/ambientes.md
+services:
+  cnpj-full:
+    build: .
+    image: cnpj-full
+    working_dir: /app
+    # Usuario que roda o Python no container. No Linux, defina CNPJ_UID e CNPJ_GID
+    # no .env (saida de "id -u" e "id -g") para os arquivos gerados serem seus e
+    # nao do root. No Windows (Docker Desktop) pode deixar sem definir.
+    user: "${CNPJ_UID:-0}:${CNPJ_GID:-0}"
+    volumes:
+      # Pasta do projeto (onde esta este arquivo) montada em /app.
+      # Os resultados (ex.: resultado/grafo.html) aparecem na mesma pasta no host.
+      - ./:/app
+      # Para usar uma base grande que esta em outra pasta do host, monte-a em /dados
+      # e use CNPJ_DB_ARQUIVO=/dados/CNPJ_full.db no .env. Exemplos:
+      #   Windows: - D:/dados/cnpj:/dados
+      #   Linux:   - /srv/dados/cnpj:/dados

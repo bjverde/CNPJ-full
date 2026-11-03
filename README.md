@@ -21,6 +21,7 @@ Este repositório é uma atualização do [CNPJ-full do Fabio Serpa](https://git
 ## Documentação
 
 * [Início rápido](#início-rápido) e [instalação](#instalação), logo abaixo
+* [Instalação e teste nos 4 ambientes](docs/ambientes.md): Windows, Linux, Docker no Windows e Docker no Linux; banco de teste, arquivo `.env` e problemas comuns
 * [Carga](docs/carga.md): download dos arquivos da RF, conversão para SQLite/CSV, modos rápido e seguro, verificação da carga e separação por UF/município
 * [Consultas e grafo](docs/consultas.md): tipos de consulta, arquivos gerados, configuração, uso da classe `RedeCNPJ` e CPF mascarado/LGPD
 * [Cache do grafo](docs/cache.md): exemplos do `--cache`, como o resultado fica no disco e quando é refeito
@@ -28,6 +29,8 @@ Este repositório é uma atualização do [CNPJ-full do Fabio Serpa](https://git
 * [Dicionário de dados da Receita Federal](docs/cnpj-metadados.pdf)
 
 # Início rápido
+
+O repositório já traz um [banco de teste](dados_teste/README.md) pequeno, com dados fictícios, que é o banco padrão das consultas. Dá para ver o grafo funcionando logo depois do clone, sem baixar nada da Receita:
 
 ```bash
 # 1. Instalar (Python 3.9 ou superior)
@@ -37,15 +40,30 @@ python3 -m venv .venv
 source .venv/bin/activate          # no Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 
-# 2. Baixar todos os ZIPs de um mesmo mês para a pasta "dados"
+# 2. Testar com o banco de teste e abrir resultado/grafo.html no navegador
+python cnpj_full/consulta.py cnpj 10000001000190 resultado --viz
+```
+
+Ou com Docker, sem instalar Python:
+
+```bash
+docker compose build
+docker compose run --rm cnpj-full python cnpj_full/consulta.py cnpj 10000001000190 resultado --viz
+```
+
+Passo a passo para Windows, Linux e Docker em cada um deles: [docs/ambientes.md](docs/ambientes.md).
+
+Com a base completa da Receita:
+
+```bash
+# 3. Baixar todos os ZIPs de um mesmo mês para a pasta "dados"
 #    (veja docs/carga.md, seção "Baixando os arquivos da Receita")
 
-# 3. Carregar no SQLite (gera saida/CNPJ_full.db, com índices)
-python3 cnpj_full/cnpj.py dados sqlite saida --dir
+# 4. Carregar no SQLite (gera saida/CNPJ_full.db, com índices)
+python cnpj_full/cnpj.py dados sqlite saida --dir
 
-# 4. Consultar uma empresa e abrir o grafo no navegador
-python3 cnpj_full/consulta.py cnpj 00000000000191 resultado --base saida/CNPJ_full.db --nivel 2 --viz
-# abra resultado/grafo.html
+# 5. Consultar na base completa (ou ponha CNPJ_DB_ARQUIVO=saida/CNPJ_full.db no .env e omita o --base)
+python cnpj_full/consulta.py cnpj 00000000000191 resultado --base saida/CNPJ_full.db --nivel 2 --viz
 ```
 
 # Instalação
@@ -54,13 +72,15 @@ Requisitos:
 * **Python 3.9 ou superior.** Os testes automáticos rodam em Python 3.9, 3.12 e 3.13.
 * As bibliotecas do `requirements.txt`: `pandas`, `numpy`, `numexpr`, `networkx` e `python-dotenv`.
 
-É recomendado usar um ambiente virtual, para não misturar as bibliotecas do projeto com as do sistema:
+É recomendado usar um ambiente virtual, para não misturar as bibliotecas do projeto com as do sistema (no Debian 12/13 e Ubuntu recentes ele é obrigatório: o `pip` do sistema dá *externally-managed-environment*):
 
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate          # no Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 ```
+
+O banco usado pelas consultas é configurado no arquivo `.env`, na raiz do projeto (veja o [`.env.example`](.env.example) e [docs/ambientes.md](docs/ambientes.md#arquivo-env-onde-fica-o-banco)).
 
 # Sobre o CPF dos sócios e a LGPD
 
