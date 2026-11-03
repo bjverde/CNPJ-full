@@ -3,5 +3,11 @@ __pycache__/
 .env
 .pytest_cache/
 .venv/
-dados/
+
+# Dados e saidas locais (o banco de teste dados_teste/cnpj_teste.db e versionado)
+/dados/
+/saida/
+/resultado/
+/graficos/
+*.db-journal
 *.part

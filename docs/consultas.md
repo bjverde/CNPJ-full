@@ -28,12 +28,12 @@ Tipo | Busca
 
 Argumento | Descrição
 --------- | ---------
-`--base` | Arquivo SQLite. Se omitido, usa `PATH_BD` do `cnpj_full/config.py`
+`--base` | Arquivo SQLite. Se omitido, usa `CNPJ_DB_ARQUIVO` do `.env` e, sem ele, o banco de teste `dados_teste/cnpj_teste.db` (veja [o arquivo .env](ambientes.md#arquivo-env-onde-fica-o-banco))
 `--nivel` | Profundidade em "pulos". `--nivel 1` traz o item e os diretamente relacionados. Se omitido, usa `NIVEL_MAX_DEFAULT`
 `--csv` | Gera `pessoas.csv` e `vinculos.csv` (padrão se nenhuma saída for escolhida)
 `--graphml` | Gera `rede.graphml`
 `--gexf` | Gera `rede.gexf`, que pode ser aberto no [Gephi](https://gephi.org/)
-`--viz` | Gera `grafo.html`, um grafo interativo para abrir no navegador. Se `PATH_NAVEGADOR` estiver no `cnpj_full/config.py`, o navegador abre sozinho
+`--viz` | Gera `grafo.html`, um grafo interativo para abrir no navegador. Se `CNPJ_NAVEGADOR` estiver no `.env`, o navegador abre sozinho
 `--conexoes` | Arquivo com pares de pessoas (CNPJ ou CPF mascarado + nome), um par por linha, separados por `;`. Gera `conexoes.csv` com o caminho entre cada par na rede encontrada, ou `SEM CONEXAO`
 `--cache` | Reaproveita o resultado já gravado na pasta de saída quando a consulta é a mesma, sem consultar o banco de novo. Veja [Cache](#cache) e os [exemplos](cache.md)
 
@@ -82,9 +82,9 @@ Exemplos passo a passo, com o conteúdo do `cache.json` e as pastas geradas, em 
 
 Variável | Descrição
 -------- | ---------
-`PATH_BD` | Banco SQLite padrão (pode ser trocado com `--base`)
+`PATH_BD` | Banco SQLite padrão (pode ser trocado com `--base`). Vem de `CNPJ_DB_ARQUIVO` no `.env`, relativo à raiz do projeto; sem ele, `dados_teste/cnpj_teste.db`
 `NIVEL_MAX_DEFAULT` | Profundidade padrão (pode ser trocada com `--nivel`)
-`PATH_NAVEGADOR` | Caminho do navegador para abrir o `grafo.html` automaticamente. Vazio só gera o arquivo
+`PATH_NAVEGADOR` | Caminho do navegador para abrir o `grafo.html` automaticamente. Vem de `CNPJ_NAVEGADOR` no `.env`. Vazio só gera o arquivo
 `SEP_CSV` | Separador dos CSVs de saída e do arquivo de entrada do tipo `file`
 `COLUNAS_CSV` | Colunas do `pessoas.csv`
 `QUALIFICACOES` | Qualificações de sócio consideradas nos vínculos, com a descrição que aparece no grafo. Uma qualificação fora da lista é ignorada (ex: um procurador não vira vínculo se o código `17` for removido). Use `'TODAS'` para considerar qualquer qualificação

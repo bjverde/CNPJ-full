@@ -155,7 +155,7 @@ class RedeCNPJ:
     def gera_json(self, path):
         import json
 
-        with open(path, "w") as f:
+        with open(path, "w", encoding="utf-8") as f:
             f.write(json.dumps(self.json()))
 
     def gera_graphml_G(self, G, path):

@@ -15,7 +15,11 @@ cnpj_full/              Código Python
   viz/d3.v7.min.js      d3.js v7.9.0 embutido no grafo.html (funciona sem internet)
   viz/LICENSE-d3.txt    Licença do d3.js (ISC)
   extra_csv/            Scripts para separar o estabelecimento.csv por UF ou município
+dados_teste/            Banco de teste versionado (dados fictícios)
+  cnpj_teste.db         Banco SQLite pequeno, padrão das consultas sem --base
+  gerar_banco_teste.py  Gera os ZIPs no formato da RF e recria o cnpj_teste.db
 docs/                   Documentação
+  ambientes.md          Instalação e teste no Windows, Linux e Docker; .env
   cache.md              Exemplos do cache do grafo (--cache)
   download.md           Download dos arquivos da RF
   carga.md              Arquivos da RF e carga (SQLite/CSV)
@@ -25,19 +29,24 @@ docs/                   Documentação
   cnpj-metadados.pdf    Dicionário de dados da Receita Federal
   img/                  Imagens da documentação
 tests/                  Testes automáticos (pytest) e amostra sintética
-.github/workflows/      GitHub Actions (roda os testes a cada PR)
+.github/workflows/      GitHub Actions (testes em Ubuntu, Windows e Docker a cada PR)
+Dockerfile              Imagem com Python e bibliotecas (o código entra pelo volume)
+docker-compose.yml      Serviço cnpj-full com a pasta do projeto montada em /app
+.env.example            Exemplo do .env (caminho do banco e outras configurações)
 ```
 
 Os scripts podem ser rodados de qualquer pasta, como arquivo (`python3 cnpj_full/cnpj.py ...`) ou como módulo a partir da raiz do projeto (`python3 -m cnpj_full.cnpj ...`).
 
 # Testes
 
-Os testes usam uma amostra sintética no formato oficial da RF (`tests/amostra.py`) e cobrem a carga, a verificação das quantidades, a retomada com `--continuar` e as consultas do grafo. O download é testado com um servidor local que imita o Nextcloud da RF (`tests/test_download.py`). Eles rodam no GitHub Actions a cada PR. Para rodar localmente:
+Os testes usam uma amostra sintética no formato oficial da RF (`tests/amostra.py`) e o banco de teste (`dados_teste/cnpj_teste.db`). Cobrem a carga, a verificação das quantidades, a retomada com `--continuar`, as consultas do grafo, a escolha do banco pelo `.env`, se o banco de teste versionado está igual ao que o gerador produz e o download (com um servidor local que imita o Nextcloud da RF, `tests/test_download.py`). Eles rodam no GitHub Actions a cada PR, em Ubuntu e Windows (Python 3.9, 3.12 e 3.13) e no Docker. Para rodar localmente:
 
 ```bash
 pip install pytest
 python3 -m pytest tests
 ```
+
+Se mudar o `dados_teste/gerar_banco_teste.py` (ou a carga), recrie o banco de teste com `python dados_teste/gerar_banco_teste.py` e faça commit do `dados_teste/cnpj_teste.db`; o teste `test_banco_versionado_igual_ao_gerador` falha se os dois ficarem diferentes.
 
 Os testes do PostgreSQL (`tests/test_postgres.py`) só rodam se houver um PostgreSQL de teste, informado em `CNPJ_TESTE_PG_HOST` (e, se preciso, `CNPJ_TESTE_PG_PORTA`, `CNPJ_TESTE_PG_USUARIO`, `CNPJ_TESTE_PG_SENHA`, `CNPJ_TESTE_PG_NOME`, padrão `cnpj_teste`). Sem isso são pulados. No GitHub Actions eles rodam com um container `postgres:16`. Localmente, com Docker:
 
