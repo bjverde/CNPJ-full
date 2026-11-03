@@ -12,10 +12,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # ubuntu-24.04 fixo: o ubuntu-latest novo nao tem mais o Python 3.9
+        # ubuntu-24.04 fixo, para o CI nao mudar sozinho quando o ubuntu-latest mudar
         os: [ubuntu-24.04, windows-latest]
-        # 3.9 cobre pandas 2.x; 3.12 e 3.13 cobrem as versoes mais recentes
-        python-version: ['3.9', '3.12', '3.13']
+        # Versao minima do projeto: Python 3.13
+        python-version: ['3.13']
 
     steps:
       - uses: actions/checkout@v4
@@ -41,7 +41,7 @@ jobs:
       - name: Roteiro - gera os ZIPs de teste e faz a carga
         run: |
           python dados_teste/gerar_banco_teste.py --saida saida_teste/cnpj_teste.db --zips dados_zips
-          python cnpj_full/cnpj.py dados_zips sqlite saida_carga --dir
+          python cnpj_full/carga.py dados_zips sqlite saida_carga --dir
           python cnpj_full/consulta.py cnpj 20000001000143 resultado2 --base saida_carga/CNPJ_full.db --viz
 
   docker:
@@ -59,3 +59,48 @@ jobs:
           docker compose run --rm cnpj-full python cnpj_full/consulta.py cnpj 10000001000190 resultado --viz --csv
           test -s resultado/grafo.html
           test "$(stat -c %u resultado/grafo.html)" = "$(id -u)"
+
+  postgres:
+    name: PostgreSQL 16 / Python 3.13
+    runs-on: ubuntu-24.04
+    # Servico com o PostgreSQL para tests/test_postgres.py (services so funciona em Linux)
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: teste
+          POSTGRES_DB: cnpj_teste
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      CNPJ_TESTE_PG_HOST: localhost
+      CNPJ_TESTE_PG_SENHA: teste
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+          cache: pip
+
+      - name: Instala as dependencias
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt pytest
+
+      - name: Testes do PostgreSQL
+        run: python -m pytest -v tests/test_postgres.py
+
+      - name: Roteiro - carga dos ZIPs de teste no PostgreSQL
+        env:
+          CNPJ_DB_HOST: localhost
+          CNPJ_DB_SENHA: teste
+          CNPJ_DB_NOME: cnpj_roteiro
+        run: |
+          python dados_teste/gerar_banco_teste.py --saida saida_teste/cnpj_teste.db --zips dados_zips
+          python cnpj_full/carga.py dados_zips postgres --dir

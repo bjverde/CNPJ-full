@@ -41,7 +41,7 @@ Consulta | O que mostra | Nós (nível 1 / 2 / 3)
 
 Exemplo: `python cnpj_full/consulta.py cnpj 50000001000104 resultado --nivel 3 --viz`.
 
-O banco é gerado pelo script [`dados_teste/gerar_banco_teste.py`](../dados_teste/gerar_banco_teste.py), que cria ZIPs no formato da RF e carrega com o próprio `cnpj_full/cnpj.py`. A geração é determinística: rodar de novo gera os mesmos dados. Os testes automáticos conferem que o `.db` versionado está igual ao que o script gera.
+O banco é gerado pelo script [`dados_teste/gerar_banco_teste.py`](../dados_teste/gerar_banco_teste.py), que cria ZIPs no formato da RF e carrega com o próprio `cnpj_full/carga.py`. A geração é determinística: rodar de novo gera os mesmos dados. Os testes automáticos conferem que o `.db` versionado está igual ao que o script gera.
 
 ```bash
 python dados_teste/gerar_banco_teste.py                 # recria dados_teste/cnpj_teste.db
@@ -78,7 +78,7 @@ Variável | Para que serve | Exemplo
 `CNPJ_UID`, `CNPJ_GID` | Só Docker no Linux: usuário que roda o container (veja o [ambiente 4](#4-docker-com-volume-no-linux)) | `1000`
 `FILES_LOCATION` | Só scripts `extra_csv`: pasta do `estabelecimento.csv`, terminando com `/` | `saida/`
 
-Outros SGBDs (PostgreSQL etc.) ainda não são usados pelas consultas. Quando a carga multi-SGBD entrar, as variáveis de conexão (`CNPJ_DB_HOST`, `CNPJ_DB_PORTA`, `CNPJ_DB_NOME`, `CNPJ_DB_USUARIO`, `CNPJ_DB_SENHA`) serão acrescentadas ao `.env.example`.
+O `.env.example` tem um exemplo para cada tipo de banco (SQLite, PostgreSQL, MySQL/MariaDB, SQL Server e Oracle). Deixe ativo só um deles. Hoje a carga funciona em SQLite e PostgreSQL ([Carga no PostgreSQL](postgresql.md)), e as consultas só em SQLite; os outros exemplos já mostram os nomes que serão usados. Conexão: `CNPJ_DB_HOST`, `CNPJ_DB_PORTA`, `CNPJ_DB_NOME`, `CNPJ_DB_USUARIO`, `CNPJ_DB_SENHA` e `CNPJ_DB_SCHEMA`. As variáveis do download (`CNPJ_RF_URL`, `CNPJ_PASTA_DOWNLOAD`) estão em [Download](download.md).
 
 Cuidados com o caminho do banco:
 
@@ -94,9 +94,9 @@ Os mesmos três passos em todos os ambientes. Rode na raiz do projeto. Nos ambie
 # 1. Consulta no banco de teste e grafo (abra resultado/grafo.html no navegador)
 python cnpj_full/consulta.py cnpj 10000001000190 resultado --nivel 3 --viz --csv
 
-# 2. Carga: gera os ZIPs de teste no formato da RF e carrega com o cnpj.py
+# 2. Carga: gera os ZIPs de teste no formato da RF e carrega com o carga.py
 python dados_teste/gerar_banco_teste.py --saida saida_teste/cnpj_teste.db --zips dados_zips
-python cnpj_full/cnpj.py dados_zips sqlite saida_carga --dir
+python cnpj_full/carga.py dados_zips sqlite saida_carga --dir
 
 # 3. Consulta na base recém-carregada
 python cnpj_full/consulta.py cnpj 20000001000143 resultado2 --base saida_carga/CNPJ_full.db --viz
@@ -109,7 +109,7 @@ O que conferir:
 * o passo 2 mostra a `Verificacao das quantidades por arquivo` com todos os arquivos `OK` e `Indices criados com sucesso`;
 * no Docker, os arquivos aparecem na pasta do projeto no seu computador.
 
-Os testes automáticos (`python -m pytest tests`) rodam a cada PR no GitHub Actions em Ubuntu e Windows (Python 3.9, 3.12 e 3.13) e no Docker, incluindo os comandos acima.
+Os testes automáticos (`python -m pytest tests`) rodam a cada PR no GitHub Actions em Ubuntu e Windows (Python 3.13, a versão mínima) e no Docker, incluindo os comandos acima.
 
 Para limpar depois: apague as pastas `resultado`, `resultado2`, `saida_teste`, `saida_carga` e `dados_zips`.
 
@@ -117,7 +117,7 @@ Para limpar depois: apague as pastas `resultado`, `resultado2`, `saida_teste`, `
 
 # 1. Somente Windows
 
-Requisitos: **Python 3.9 ou superior** instalado pelo [python.org](https://www.python.org/downloads/windows/) (marque *Add python.exe to PATH* na instalação) e o [Git](https://git-scm.com/download/win).
+Requisitos: **Python 3.13 ou superior** instalado pelo [python.org](https://www.python.org/downloads/windows/) (marque *Add python.exe to PATH* na instalação) e o [Git](https://git-scm.com/download/win).
 
 No Windows o comando costuma ser `python` ou `py` (o *Python Launcher*), e não `python3`. Os exemplos abaixo usam PowerShell.
 
@@ -150,11 +150,14 @@ Observações:
 
 # 2. Somente Linux
 
-Requisitos: Python 3.9 ou superior com o módulo `venv`. No Debian/Ubuntu:
+Requisitos: Python 3.13 ou superior com o módulo `venv`. O Debian 13 já vem com o 3.13:
 
 ```bash
 sudo apt install python3 python3-venv git
+python3 --version    # precisa ser 3.13 ou superior
 ```
+
+Distribuições com Python mais antigo (ex.: Ubuntu 24.04 vem com 3.12, Debian 12 com 3.11) precisam instalar o 3.13 à parte (ex.: `pyenv` ou, no Ubuntu, o PPA deadsnakes) e criar o ambiente virtual com ele (`python3.13 -m venv .venv`), ou usar o Docker.
 
 No Debian 12/13 e no Ubuntu 23.04 ou mais novo, `pip install` direto no Python do sistema dá o erro *externally-managed-environment* (PEP 668). Use sempre o ambiente virtual:
 

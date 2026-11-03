@@ -2,7 +2,7 @@
 
 [![Testes](https://github.com/bjverde/CNPJ-full/actions/workflows/testes.yml/badge.svg)](https://github.com/bjverde/CNPJ-full/actions/workflows/testes.yml)
 
-Utilitário em Python para carregar a base completa de CNPJ [disponibilizada pela Receita Federal](https://dados.gov.br/dados/conjuntos-dados/cadastro-nacional-da-pessoa-juridica---cnpj) (RF) e transformá-la em um banco SQLite ou em arquivos CSV tratados. Processa empresas, estabelecimentos, sócios, Simples/MEI e as tabelas de domínio (CNAEs, municípios, países, naturezas jurídicas, qualificações e motivos).
+Utilitário em Python para baixar a base completa de CNPJ [disponibilizada pela Receita Federal](https://dados.gov.br/dados/conjuntos-dados/cadastro-nacional-da-pessoa-juridica---cnpj) (RF) e carregá-la em um banco SQLite, no PostgreSQL ou em arquivos CSV tratados. Processa empresas, estabelecimentos, sócios, Simples/MEI e as tabelas de domínio (CNAEs, municípios, países, naturezas jurídicas, qualificações e motivos).
 
 Também permite consultar empresas ou sócios e gerar a rede de relacionamentos em CSV ou em grafo (GraphML, GEXF ou HTML interativo).
 
@@ -21,8 +21,10 @@ Este repositório é uma atualização do [CNPJ-full do Fabio Serpa](https://git
 ## Documentação
 
 * [Início rápido](#início-rápido) e [instalação](#instalação), logo abaixo
+* [Download](docs/download.md): baixa a competência mais recente (ou outra) direto do servidor da RF
+* [Carga no PostgreSQL](docs/postgresql.md): configuração no `.env`, modelo e como a carga funciona
 * [Instalação e teste nos 4 ambientes](docs/ambientes.md): Windows, Linux, Docker no Windows e Docker no Linux; banco de teste, arquivo `.env` e problemas comuns
-* [Carga](docs/carga.md): download dos arquivos da RF, conversão para SQLite/CSV, modos rápido e seguro, verificação da carga e separação por UF/município
+* [Carga](docs/carga.md): arquivos da RF, conversão para SQLite/CSV, modos rápido e seguro, verificação da carga e separação por UF/município
 * [Consultas e grafo](docs/consultas.md): tipos de consulta, arquivos gerados, configuração, uso da classe `RedeCNPJ` e CPF mascarado/LGPD
 * [Cache do grafo](docs/cache.md): exemplos do `--cache`, como o resultado fica no disco e quando é refeito
 * [Desenvolvimento](docs/desenvolvimento.md): estrutura de pastas, testes e roteiro
@@ -33,7 +35,7 @@ Este repositório é uma atualização do [CNPJ-full do Fabio Serpa](https://git
 O repositório já traz um [banco de teste](dados_teste/README.md) pequeno, com dados fictícios, que é o banco padrão das consultas. Dá para ver o grafo funcionando logo depois do clone, sem baixar nada da Receita:
 
 ```bash
-# 1. Instalar (Python 3.9 ou superior)
+# 1. Instalar (Python 3.13 ou superior)
 git clone https://github.com/bjverde/CNPJ-full.git
 cd CNPJ-full
 python3 -m venv .venv
@@ -56,11 +58,13 @@ Passo a passo para Windows, Linux e Docker em cada um deles: [docs/ambientes.md]
 Com a base completa da Receita:
 
 ```bash
-# 3. Baixar todos os ZIPs de um mesmo mês para a pasta "dados"
-#    (veja docs/carga.md, seção "Baixando os arquivos da Receita")
+# 3. Baixar os ZIPs da competência mais recente (vão para dados/AAAA-MM/, veja docs/download.md)
+python cnpj_full/download.py
 
 # 4. Carregar no SQLite (gera saida/CNPJ_full.db, com índices)
-python cnpj_full/cnpj.py dados sqlite saida --dir
+python cnpj_full/carga.py dados/2026-10 sqlite saida --dir
+#    ou no PostgreSQL (conexão no .env, veja docs/postgresql.md)
+python cnpj_full/carga.py dados/2026-10 postgres --dir
 
 # 5. Consultar na base completa (ou ponha CNPJ_DB_ARQUIVO=saida/CNPJ_full.db no .env e omita o --base)
 python cnpj_full/consulta.py cnpj 00000000000191 resultado --base saida/CNPJ_full.db --nivel 2 --viz
@@ -69,8 +73,8 @@ python cnpj_full/consulta.py cnpj 00000000000191 resultado --base saida/CNPJ_ful
 # Instalação
 
 Requisitos:
-* **Python 3.9 ou superior.** Os testes automáticos rodam em Python 3.9, 3.12 e 3.13.
-* As bibliotecas do `requirements.txt`: `pandas`, `numpy`, `numexpr`, `networkx` e `python-dotenv`.
+* **Python 3.13 ou superior** (versão mínima do projeto). Os testes automáticos rodam em Python 3.13, no Ubuntu e no Windows.
+* As bibliotecas do `requirements.txt`: `pandas`, `numpy`, `numexpr`, `networkx`, `python-dotenv` e `psycopg[binary]` (driver do PostgreSQL).
 
 É recomendado usar um ambiente virtual, para não misturar as bibliotecas do projeto com as do sistema (no Debian 12/13 e Ubuntu recentes ele é obrigatório: o `pip` do sistema dá *externally-managed-environment*):
 

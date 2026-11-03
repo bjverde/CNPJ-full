@@ -4,7 +4,7 @@ import sqlite3
 import pandas as pd
 import pytest
 
-from cnpj_full import cnpj
+from cnpj_full import carga
 from amostra import gera_amostra
 from conftest import carrega
 
@@ -14,14 +14,14 @@ def contagem(con, tabela):
 
 
 def test_identifica_tabela():
-    assert cnpj.identifica_tabela('K3241.K03200Y0.D40210.EMPRECSV') == cnpj.EMPRESA
-    assert cnpj.identifica_tabela('K3241.K03200Y0.D40210.ESTABELE') == cnpj.ESTABELECIMENTO
-    assert cnpj.identifica_tabela('K3241.K03200Y0.D40210.SOCIOCSV') == cnpj.SOCIOS
-    assert cnpj.identifica_tabela('F.K03200$W.SIMPLES.CSV.D40210') == cnpj.SIMPLES
-    assert cnpj.identifica_tabela('F.K03200$Z.D40210.QUALSCSV') == cnpj.QUALIFICACAO
-    assert cnpj.identifica_tabela('Estabelecimentos3.zip') == cnpj.ESTABELECIMENTO
-    assert cnpj.identifica_tabela('Qualificacoes.zip') == cnpj.QUALIFICACAO
-    assert cnpj.identifica_tabela('LEIAME.txt') is None
+    assert carga.identifica_tabela('K3241.K03200Y0.D40210.EMPRECSV') == carga.EMPRESA
+    assert carga.identifica_tabela('K3241.K03200Y0.D40210.ESTABELE') == carga.ESTABELECIMENTO
+    assert carga.identifica_tabela('K3241.K03200Y0.D40210.SOCIOCSV') == carga.SOCIOS
+    assert carga.identifica_tabela('F.K03200$W.SIMPLES.CSV.D40210') == carga.SIMPLES
+    assert carga.identifica_tabela('F.K03200$Z.D40210.QUALSCSV') == carga.QUALIFICACAO
+    assert carga.identifica_tabela('Estabelecimentos3.zip') == carga.ESTABELECIMENTO
+    assert carga.identifica_tabela('Qualificacoes.zip') == carga.QUALIFICACAO
+    assert carga.identifica_tabela('LEIAME.txt') is None
 
 
 def test_quantidades(banco):
@@ -64,8 +64,8 @@ def test_tratamentos(banco):
 
 def test_indices(banco):
     indices = set(r[0] for r in banco.execute("SELECT name FROM sqlite_master WHERE type = 'index'"))
-    for nome, _, _ in cnpj.INDICES:
-        assert cnpj.PREFIXO_INDICE + nome in indices
+    for nome, _, _ in carga.INDICES:
+        assert carga.PREFIXO_INDICE + nome in indices
 
 
 def test_journal_volta_ao_normal(banco):
@@ -95,39 +95,39 @@ def test_saida_csv(zips, tmp_path):
     carrega(zips, saida, tipo='csv')
     empresa = pd.read_csv(os.path.join(saida, 'empresa.csv'), dtype=str)
     assert len(empresa) == 4
-    assert list(empresa.columns) == [c[0] for c in cnpj.COLUNAS[cnpj.EMPRESA]]
+    assert list(empresa.columns) == [c[0] for c in carga.COLUNAS[carga.EMPRESA]]
     socios = pd.read_csv(os.path.join(saida, 'socios.csv'), dtype=str)
     assert len(socios) == 6
 
 
-@pytest.mark.parametrize('modo', [cnpj.MODO_SEGURO, cnpj.MODO_RAPIDO])
+@pytest.mark.parametrize('modo', [carga.MODO_SEGURO, carga.MODO_RAPIDO])
 def test_interrupcao_e_continuar(zips, tmp_path, monkeypatch, modo):
     saida = str(tmp_path / 'saida')
-    original = cnpj.le_arquivo
+    original = carga.le_arquivo
 
     def le_arquivo_falha(tabela, caminho, membro, estatisticas=None):
         for bloco in original(tabela, caminho, membro, estatisticas):
             yield bloco
-            if tabela == cnpj.SOCIOS:
+            if tabela == carga.SOCIOS:
                 raise KeyboardInterrupt('interrupcao simulada')
 
-    monkeypatch.setattr(cnpj, 'le_arquivo', le_arquivo_falha)
+    monkeypatch.setattr(carga, 'le_arquivo', le_arquivo_falha)
     with pytest.raises(KeyboardInterrupt):
         carrega(zips, saida, modo=modo, indices=False)
-    monkeypatch.setattr(cnpj, 'le_arquivo', original)
+    monkeypatch.setattr(carga, 'le_arquivo', original)
 
-    if modo == cnpj.MODO_RAPIDO:
+    if modo == carga.MODO_RAPIDO:
         # No modo rapido nao ha como desfazer a gravacao parcial
         with pytest.raises(SystemExit):
             carrega(zips, saida, modo=modo, continuar=True)
         return
 
-    con = sqlite3.connect(os.path.join(saida, cnpj.NOME_ARQUIVO_SQLITE))
+    con = sqlite3.connect(os.path.join(saida, carga.NOME_ARQUIVO_SQLITE))
     assert contagem(con, 'socios') == 0
     con.close()
 
     carrega(zips, saida, modo=modo, continuar=True)
-    con = sqlite3.connect(os.path.join(saida, cnpj.NOME_ARQUIVO_SQLITE))
+    con = sqlite3.connect(os.path.join(saida, carga.NOME_ARQUIVO_SQLITE))
     assert contagem(con, 'socios') == 6
     assert contagem(con, 'empresa') == 4  # nao duplicou o que ja estava gravado
     assert con.execute("SELECT COUNT(*) FROM controle_carga WHERE status = 'OK'").fetchone()[0] == 13

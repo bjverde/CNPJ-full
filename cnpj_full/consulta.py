@@ -54,7 +54,7 @@ def _hash_arquivo(path):
 def versao_base(conBD, path_BD):
     """Identifica a carga da base. Muda quando a base e recarregada.
 
-    Usa o fim da ultima carga registrada na controle_carga (gravada pelo cnpj.py).
+    Usa o fim da ultima carga registrada na controle_carga (gravada pelo carga.py).
     Se a tabela nao existir, usa data de modificacao e tamanho do arquivo.
     """
     try:
@@ -329,6 +329,12 @@ def mascara_cpf(cpf_original):
 
 def help():
     print('''
+consulta.py - Consulta empresas e socios e gera a rede de relacionamentos
+
+Busca no banco SQLite gerado pelo carga.py (ou no banco de teste) uma empresa,
+socio ou lista de itens, e gera a rede de relacionamentos ate o nivel pedido
+em CSV, GraphML, GEXF ou grafo interativo (grafo.html).
+
 Uso: python consulta.py <tipo consulta> <item|arquivo input> <caminho output> 
      [--base <arquivo sqlite>] [--nivel <int>] 
      [--csv] [--graphml] [--gexf] [--viz] [--cache]

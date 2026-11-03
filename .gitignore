@@ -10,3 +10,4 @@ __pycache__/
 /resultado/
 /graficos/
 *.db-journal
+*.part
