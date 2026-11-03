@@ -12,10 +12,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # ubuntu-24.04 fixo: o ubuntu-latest novo nao tem mais o Python 3.9
+        # ubuntu-24.04 fixo, para o CI nao mudar sozinho quando o ubuntu-latest mudar
         os: [ubuntu-24.04, windows-latest]
-        # 3.9 cobre pandas 2.x; 3.12 e 3.13 cobrem as versoes mais recentes
-        python-version: ['3.9', '3.12', '3.13']
+        # Versao minima do projeto: Python 3.13
+        python-version: ['3.13']
 
     steps:
       - uses: actions/checkout@v4

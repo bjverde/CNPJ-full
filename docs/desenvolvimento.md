@@ -39,7 +39,7 @@ Os scripts podem ser rodados de qualquer pasta, como arquivo (`python3 cnpj_full
 
 # Testes
 
-Os testes usam uma amostra sintética no formato oficial da RF (`tests/amostra.py`) e o banco de teste (`dados_teste/cnpj_teste.db`). Cobrem a carga, a verificação das quantidades, a retomada com `--continuar`, as consultas do grafo, a escolha do banco pelo `.env`, se o banco de teste versionado está igual ao que o gerador produz e o download (com um servidor local que imita o Nextcloud da RF, `tests/test_download.py`). Eles rodam no GitHub Actions a cada PR, em Ubuntu e Windows (Python 3.9, 3.12 e 3.13) e no Docker. Para rodar localmente:
+Os testes usam uma amostra sintética no formato oficial da RF (`tests/amostra.py`) e o banco de teste (`dados_teste/cnpj_teste.db`). Cobrem a carga, a verificação das quantidades, a retomada com `--continuar`, as consultas do grafo, a escolha do banco pelo `.env`, se o banco de teste versionado está igual ao que o gerador produz e o download (com um servidor local que imita o Nextcloud da RF, `tests/test_download.py`). Eles rodam no GitHub Actions a cada PR, em Ubuntu e Windows (Python 3.13, a versão mínima) e no Docker. Para rodar localmente:
 
 ```bash
 pip install pytest

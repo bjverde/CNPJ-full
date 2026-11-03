@@ -109,7 +109,7 @@ O que conferir:
 * o passo 2 mostra a `Verificacao das quantidades por arquivo` com todos os arquivos `OK` e `Indices criados com sucesso`;
 * no Docker, os arquivos aparecem na pasta do projeto no seu computador.
 
-Os testes automáticos (`python -m pytest tests`) rodam a cada PR no GitHub Actions em Ubuntu e Windows (Python 3.9, 3.12 e 3.13) e no Docker, incluindo os comandos acima.
+Os testes automáticos (`python -m pytest tests`) rodam a cada PR no GitHub Actions em Ubuntu e Windows (Python 3.13, a versão mínima) e no Docker, incluindo os comandos acima.
 
 Para limpar depois: apague as pastas `resultado`, `resultado2`, `saida_teste`, `saida_carga` e `dados_zips`.
 
@@ -117,7 +117,7 @@ Para limpar depois: apague as pastas `resultado`, `resultado2`, `saida_teste`, `
 
 # 1. Somente Windows
 
-Requisitos: **Python 3.9 ou superior** instalado pelo [python.org](https://www.python.org/downloads/windows/) (marque *Add python.exe to PATH* na instalação) e o [Git](https://git-scm.com/download/win).
+Requisitos: **Python 3.13 ou superior** instalado pelo [python.org](https://www.python.org/downloads/windows/) (marque *Add python.exe to PATH* na instalação) e o [Git](https://git-scm.com/download/win).
 
 No Windows o comando costuma ser `python` ou `py` (o *Python Launcher*), e não `python3`. Os exemplos abaixo usam PowerShell.
 
@@ -150,11 +150,14 @@ Observações:
 
 # 2. Somente Linux
 
-Requisitos: Python 3.9 ou superior com o módulo `venv`. No Debian/Ubuntu:
+Requisitos: Python 3.13 ou superior com o módulo `venv`. O Debian 13 já vem com o 3.13:
 
 ```bash
 sudo apt install python3 python3-venv git
+python3 --version    # precisa ser 3.13 ou superior
 ```
+
+Distribuições com Python mais antigo (ex.: Ubuntu 24.04 vem com 3.12, Debian 12 com 3.11) precisam instalar o 3.13 à parte (ex.: `pyenv` ou, no Ubuntu, o PPA deadsnakes) e criar o ambiente virtual com ele (`python3.13 -m venv .venv`), ou usar o Docker.
 
 No Debian 12/13 e no Ubuntu 23.04 ou mais novo, `pip install` direto no Python do sistema dá o erro *externally-managed-environment* (PEP 668). Use sempre o ambiente virtual:
 

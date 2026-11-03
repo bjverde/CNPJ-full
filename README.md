@@ -35,7 +35,7 @@ Este repositório é uma atualização do [CNPJ-full do Fabio Serpa](https://git
 O repositório já traz um [banco de teste](dados_teste/README.md) pequeno, com dados fictícios, que é o banco padrão das consultas. Dá para ver o grafo funcionando logo depois do clone, sem baixar nada da Receita:
 
 ```bash
-# 1. Instalar (Python 3.9 ou superior)
+# 1. Instalar (Python 3.13 ou superior)
 git clone https://github.com/bjverde/CNPJ-full.git
 cd CNPJ-full
 python3 -m venv .venv
@@ -73,7 +73,7 @@ python cnpj_full/consulta.py cnpj 00000000000191 resultado --base saida/CNPJ_ful
 # Instalação
 
 Requisitos:
-* **Python 3.9 ou superior.** Os testes automáticos rodam em Python 3.9, 3.12 e 3.13.
+* **Python 3.13 ou superior** (versão mínima do projeto). Os testes automáticos rodam em Python 3.13, no Ubuntu e no Windows.
 * As bibliotecas do `requirements.txt`: `pandas`, `numpy`, `numexpr`, `networkx`, `python-dotenv` e `psycopg[binary]` (driver do PostgreSQL).
 
 É recomendado usar um ambiente virtual, para não misturar as bibliotecas do projeto com as do sistema (no Debian 12/13 e Ubuntu recentes ele é obrigatório: o `pip` do sistema dá *externally-managed-environment*):
