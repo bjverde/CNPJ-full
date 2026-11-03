@@ -8,10 +8,12 @@ cnpj_full/              Código Python
   consulta.py           Consultas por linha de comando e geração do grafo
   rede_cnpj.py          Classe RedeCNPJ (navegação no banco e montagem do grafo)
   config.py             Configurações das consultas
+  modelo.py             Definição do modelo de banco; gera os scripts de modelo_banco/
   viz/template.html     Template da visualização interativa (d3.js)
   viz/d3.v7.min.js      d3.js v7.9.0 embutido no grafo.html (funciona sem internet)
   viz/LICENSE-d3.txt    Licença do d3.js (ISC)
   extra_csv/            Scripts para separar o estabelecimento.csv por UF ou município
+modelo_banco/           Scripts de criação do banco (MySQL, PostgreSQL, SQLite, SQL Server, Oracle), gerados pelo modelo.py
 docs/                   Documentação
   cache.md              Exemplos do cache do grafo (--cache)
   carga.md              Download dos arquivos e carga
