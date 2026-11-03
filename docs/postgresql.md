@@ -14,7 +14,7 @@ Não há `<pasta saída>`: a conexão vem do `.env` (ou de variáveis de ambient
 
 ## Configuração (.env)
 
-Copie o `.env.example` para `.env` na raiz do projeto e ajuste:
+Copie o `.env.example` para `.env` na raiz do projeto, comente o exemplo do SQLite, tire o `#` do exemplo do PostgreSQL e ajuste:
 
 Variável | Descrição | Padrão
 -------- | --------- | ------

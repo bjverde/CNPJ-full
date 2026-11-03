@@ -78,7 +78,7 @@ Variável | Para que serve | Exemplo
 `CNPJ_UID`, `CNPJ_GID` | Só Docker no Linux: usuário que roda o container (veja o [ambiente 4](#4-docker-com-volume-no-linux)) | `1000`
 `FILES_LOCATION` | Só scripts `extra_csv`: pasta do `estabelecimento.csv`, terminando com `/` | `saida/`
 
-Outros SGBDs (PostgreSQL etc.) ainda não são usados pelas consultas. Quando a carga multi-SGBD entrar, as variáveis de conexão (`CNPJ_DB_HOST`, `CNPJ_DB_PORTA`, `CNPJ_DB_NOME`, `CNPJ_DB_USUARIO`, `CNPJ_DB_SENHA`) serão acrescentadas ao `.env.example`.
+O `.env.example` tem um exemplo para cada tipo de banco (SQLite, PostgreSQL, MySQL/MariaDB, SQL Server e Oracle). Deixe ativo só um deles. Hoje a carga funciona em SQLite e PostgreSQL ([Carga no PostgreSQL](postgresql.md)), e as consultas só em SQLite; os outros exemplos já mostram os nomes que serão usados. Conexão: `CNPJ_DB_HOST`, `CNPJ_DB_PORTA`, `CNPJ_DB_NOME`, `CNPJ_DB_USUARIO`, `CNPJ_DB_SENHA` e `CNPJ_DB_SCHEMA`. As variáveis do download (`CNPJ_RF_URL`, `CNPJ_PASTA_DOWNLOAD`) estão em [Download](download.md).
 
 Cuidados com o caminho do banco:
 
