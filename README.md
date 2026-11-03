@@ -2,7 +2,7 @@
 
 [![Testes](https://github.com/bjverde/CNPJ-full/actions/workflows/testes.yml/badge.svg)](https://github.com/bjverde/CNPJ-full/actions/workflows/testes.yml)
 
-Utilitário em Python para carregar a base completa de CNPJ [disponibilizada pela Receita Federal](https://dados.gov.br/dados/conjuntos-dados/cadastro-nacional-da-pessoa-juridica---cnpj) (RF) e transformá-la em um banco SQLite ou em arquivos CSV tratados. Processa empresas, estabelecimentos, sócios, Simples/MEI e as tabelas de domínio (CNAEs, municípios, países, naturezas jurídicas, qualificações e motivos).
+Utilitário em Python para baixar a base completa de CNPJ [disponibilizada pela Receita Federal](https://dados.gov.br/dados/conjuntos-dados/cadastro-nacional-da-pessoa-juridica---cnpj) (RF) e carregá-la em um banco SQLite, no PostgreSQL ou em arquivos CSV tratados. Processa empresas, estabelecimentos, sócios, Simples/MEI e as tabelas de domínio (CNAEs, municípios, países, naturezas jurídicas, qualificações e motivos).
 
 Também permite consultar empresas ou sócios e gerar a rede de relacionamentos em CSV ou em grafo (GraphML, GEXF ou HTML interativo).
 
@@ -21,7 +21,9 @@ Este repositório é uma atualização do [CNPJ-full do Fabio Serpa](https://git
 ## Documentação
 
 * [Início rápido](#início-rápido) e [instalação](#instalação), logo abaixo
-* [Carga](docs/carga.md): download dos arquivos da RF, conversão para SQLite/CSV, modos rápido e seguro, verificação da carga e separação por UF/município
+* [Download](docs/download.md): baixa a competência mais recente (ou outra) direto do servidor da RF
+* [Carga no PostgreSQL](docs/postgresql.md): configuração no `.env`, modelo e como a carga funciona
+* [Carga](docs/carga.md): arquivos da RF, conversão para SQLite/CSV, modos rápido e seguro, verificação da carga e separação por UF/município
 * [Consultas e grafo](docs/consultas.md): tipos de consulta, arquivos gerados, configuração, uso da classe `RedeCNPJ` e CPF mascarado/LGPD
 * [Cache do grafo](docs/cache.md): exemplos do `--cache`, como o resultado fica no disco e quando é refeito
 * [Desenvolvimento](docs/desenvolvimento.md): estrutura de pastas, testes e roteiro
@@ -37,11 +39,13 @@ python3 -m venv .venv
 source .venv/bin/activate          # no Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 
-# 2. Baixar todos os ZIPs de um mesmo mês para a pasta "dados"
-#    (veja docs/carga.md, seção "Baixando os arquivos da Receita")
+# 2. Baixar os ZIPs da competência mais recente (vão para dados/AAAA-MM/)
+python3 cnpj_full/download.py
 
 # 3. Carregar no SQLite (gera saida/CNPJ_full.db, com índices)
-python3 cnpj_full/cnpj.py dados sqlite saida --dir
+python3 cnpj_full/cnpj.py dados/2026-10 sqlite saida --dir
+#    ou no PostgreSQL (conexão no .env, veja docs/postgresql.md)
+python3 cnpj_full/cnpj.py dados/2026-10 postgres --dir
 
 # 4. Consultar uma empresa e abrir o grafo no navegador
 python3 cnpj_full/consulta.py cnpj 00000000000191 resultado --base saida/CNPJ_full.db --nivel 2 --viz
@@ -52,7 +56,7 @@ python3 cnpj_full/consulta.py cnpj 00000000000191 resultado --base saida/CNPJ_fu
 
 Requisitos:
 * **Python 3.9 ou superior.** Os testes automáticos rodam em Python 3.9, 3.12 e 3.13.
-* As bibliotecas do `requirements.txt`: `pandas`, `numpy`, `numexpr`, `networkx` e `python-dotenv`.
+* As bibliotecas do `requirements.txt`: `pandas`, `numpy`, `numexpr`, `networkx`, `python-dotenv` e `psycopg[binary]` (driver do PostgreSQL).
 
 É recomendado usar um ambiente virtual, para não misturar as bibliotecas do projeto com as do sistema:
 

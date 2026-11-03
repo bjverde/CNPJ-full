@@ -7,12 +7,32 @@ on:
 
 jobs:
   testes:
-    runs-on: ubuntu-latest
+    # ubuntu-24.04 fixo: o ubuntu-latest nao tem mais o Python 3.9
+    runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
       matrix:
         # 3.9 cobre pandas 2.x; 3.12 e 3.13 cobrem as versoes mais recentes
         python-version: ['3.9', '3.12', '3.13']
+
+    # PostgreSQL para os testes da carga no PostgreSQL (tests/test_postgres.py)
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: teste
+          POSTGRES_DB: cnpj_teste
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      CNPJ_TESTE_PG_HOST: localhost
+      CNPJ_TESTE_PG_SENHA: teste
 
     steps:
       - uses: actions/checkout@v4

@@ -8,8 +8,8 @@ sem cabecalho, separado por ";", com campos entre aspas e encoding latin-1:
     Cnaes.zip, Motivos.zip, Municipios.zip, Naturezas.zip, Paises.zip,
     Qualificacoes.zip
 
-Este script converte esses arquivos em um banco SQLite (ou em CSVs
-tratados), usando a mesma nomenclatura de tabelas e colunas do modelo
+Este script converte esses arquivos em um banco SQLite, em CSVs tratados
+ou grava direto em um SGBD (PostgreSQL; conexao no .env), usando a mesma nomenclatura de tabelas e colunas do modelo
 de banco do projeto cnpjrfb (modelo_banco/sqlite/modelo_sqlite.sql).
 '''
 import os
@@ -23,6 +23,10 @@ import datetime
 import warnings
 
 import pandas as pd
+
+if __package__ in (None, ''):
+    # Rodando como arquivo (python cnpj_full/cnpj.py): permite importar o pacote
+    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # CONSTANTES PARA DEFINICAO CENTRALIZADA DA NOMENCLATURA A SER UTILIZADA
 # Nomes das tabelas/arquivos
@@ -567,12 +571,71 @@ def grava_arquivo_csv(output_path, tabela, caminho, membro, totais, csv_iniciado
     return est
 
 
-def cnpj_full(input_list, tipo_output, output_path, modo=MODO_RAPIDO, continuar=False):
+TIPOS_ARQUIVO = ['csv', 'sqlite']
+
+
+def tipos_output():
+    from cnpj_full import sgbd
+    return TIPOS_ARQUIVO + list(sgbd.DESTINOS) + list(sgbd.SINONIMOS)
+
+
+def abre_sgbd(tipo_output, destino=None):
+    if destino is not None:
+        return destino
+    from cnpj_full import ambiente, sgbd
+    ambiente.carrega()
+    return sgbd.abre_destino(tipo_output)
+
+
+def carga_sgbd(arquivos, tabelas, tipo_output, continuar=False, destino=None):
+    '''Carga direto em um SGBD (PostgreSQL...). Conexao lida do .env.'''
+    destino = abre_sgbd(tipo_output, destino)
+    try:
+        if continuar:
+            concluidos, totais = destino.prepara_continuacao(tabelas)
+        else:
+            destino.cria_tabelas(tabelas)
+            concluidos, totais = set(), {t: 0 for t in tabelas}
+
+        for tabela, caminho, membro in arquivos:
+            descricao = '{}{} -> {}'.format(caminho, ' [{}]'.format(membro) if membro else '', tabela)
+            if id_arquivo(caminho, membro) in concluidos:
+                print('Ja carregado, pulando: {}'.format(descricao))
+                continue
+            print('Processando arquivo: {}'.format(descricao))
+            destino.grava_arquivo(tabela, caminho, membro, totais)
+            print()
+
+        imprime_verificacao(destino.verificacao())
+    except BaseException:
+        destino.fecha()
+        raise
+    destino.fecha()
+
+    print('\nCarga concluida. Total de registros por tabela:')
+    for tabela in tabelas:
+        print('  {}: {}'.format(tabela, totais[tabela]))
+
+
+def cnpj_index_sgbd(tipo_output, destino=None):
+    destino = abre_sgbd(tipo_output, destino)
+    try:
+        destino.cria_indices()
+    finally:
+        destino.fecha()
+
+
+def cnpj_full(input_list, tipo_output, output_path=None, modo=MODO_RAPIDO, continuar=False,
+              destino=None):
     arquivos = lista_arquivos(input_list)
 
     if not arquivos:
         print(u'ERRO: Nenhum arquivo de dados da RF identificado.')
         sys.exit(-1)
+
+    if tipo_output not in TIPOS_ARQUIVO:
+        tabelas = sorted(set(a[0] for a in arquivos), key=ORDEM_TABELAS.index)
+        return carga_sgbd(arquivos, tabelas, tipo_output, continuar, destino=destino)
 
     if not os.path.exists(output_path):
         os.makedirs(output_path)
@@ -671,14 +734,18 @@ Essa operaçao pode levar vários minutos.
 def help():
     print('''
 Uso: python cnpj.py <path_input> <output:csv|sqlite> <path_output> [--dir] [--noindex] [--seguro] [--continuar]
+     python cnpj.py <path_input> postgres [--dir] [--noindex] [--continuar]
 Argumentos opcionais:
  [--dir]: Indica que o <path_input> e uma pasta com os ZIPs (ou CSVs) da RF.
- [--noindex]: NAO gera indices automaticamente no sqlite ao final da carga.
- [--seguro]: Grava no modo normal do SQLite (com journal e sync em disco).
+ [--noindex]: NAO gera indices automaticamente ao final da carga.
+ [--seguro]: So sqlite. Grava no modo normal do SQLite (com journal e sync em disco).
              Mais lento, mas uma interrupcao nao corrompe o banco e permite
              retomar a carga com --continuar. Sem ele, usa o modo rapido.
- [--continuar]: Retoma uma carga sqlite interrompida, pulando os arquivos
-                ja concluidos. Use os mesmos arquivos de entrada.
+ [--continuar]: Retoma uma carga sqlite ou postgres interrompida, pulando os
+                arquivos ja concluidos. Use os mesmos arquivos de entrada.
+
+No postgres a conexao vem do .env (CNPJ_DB_HOST, CNPJ_DB_PORTA, CNPJ_DB_NOME,
+CNPJ_DB_USUARIO, CNPJ_DB_SENHA, CNPJ_DB_SCHEMA). Veja o .env.example.
 
 Exemplos: python cnpj.py "data/Empresas0.zip" sqlite "output"
           python cnpj.py "data" sqlite "output" --dir
@@ -686,76 +753,87 @@ Exemplos: python cnpj.py "data/Empresas0.zip" sqlite "output"
           python cnpj.py "data" csv "output" --dir
           python cnpj.py "data" sqlite "output" --dir --seguro
           python cnpj.py "data" sqlite "output" --dir --seguro --continuar
+          python cnpj.py "data" postgres --dir
+          python cnpj.py "data" postgres --dir --continuar
     ''')
 
 
-def main():
+def lista_entrada_dir(input_path):
+    input_list = glob.glob(os.path.join(input_path, '*.zip'))
 
-    num_argv = len(sys.argv)
-    if num_argv < 4:
+    if not input_list:
+        # caso nao ache zip, procura arquivos descompactados.
+        input_list = [f for f in glob.glob(os.path.join(input_path, '*'))
+                      if os.path.isfile(f) and identifica_tabela(f)]
+
+    if not input_list:
+        # caso nem assim ache, indica erro.
+        print(u'ERRO: Nenhum arquivo válido encontrado no diretório!')
+        sys.exit(-1)
+
+    return sorted(input_list)
+
+
+def main():
+    posicionais = [a for a in sys.argv[1:] if not a.startswith('--')]
+    opcionais = [a for a in sys.argv[1:] if a.startswith('--')]
+
+    if len(posicionais) < 2:
         help()
         sys.exit(-1)
-    else:
-        input_path = sys.argv[1]
-        tipo_output = sys.argv[2]
-        output_path = sys.argv[3]
 
-        gera_index = True
-        modo = MODO_RAPIDO
-        continuar = False
-        input_list = [input_path]
+    input_path = posicionais[0]
+    tipo_output = posicionais[1].lower()
+    em_arquivo = tipo_output in TIPOS_ARQUIVO
 
-        if num_argv > 4:
-            for opcional in sys.argv[4:num_argv]:
-                if (opcional == '--noindex'):
-                    gera_index = False
-
-                elif (opcional == '--seguro'):
-                    modo = MODO_SEGURO
-
-                elif (opcional == '--continuar'):
-                    continuar = True
-
-                elif (opcional == '--dir'):
-                    input_list = glob.glob(os.path.join(input_path, '*.zip'))
-
-                    if not input_list:
-                        # caso nao ache zip, procura arquivos descompactados.
-                        input_list = [f for f in glob.glob(os.path.join(input_path, '*'))
-                                      if os.path.isfile(f) and identifica_tabela(f)]
-
-                    if not input_list:
-                        # caso nem assim ache, indica erro.
-                        print(u'ERRO: Nenhum arquivo válido encontrado no diretório!')
-                        sys.exit(-1)
-
-                    input_list.sort()
-
-                else:
-                    print(u'ERRO: Argumento opcional inválido.')
-                    help()
-                    sys.exit(-1)
-
-        if tipo_output not in ['csv', 'sqlite']:
-            print('''
+    if tipo_output not in tipos_output():
+        print('''
 ERRO: tipo de output inválido.
-Escolha um dos seguintes tipos de output: csv ou sqlite.
-            ''')
-            help()
+Escolha um dos seguintes tipos de output: csv, sqlite ou postgres.
+        ''')
+        help()
+        sys.exit(-1)
 
-        elif continuar and tipo_output != 'sqlite':
-            print(u'ERRO: --continuar so pode ser usado com output sqlite.')
+    if em_arquivo and len(posicionais) < 3:
+        help()
+        sys.exit(-1)
+    output_path = posicionais[2] if em_arquivo else None
+
+    gera_index = True
+    modo = MODO_RAPIDO
+    continuar = False
+    input_list = [input_path]
+
+    for opcional in opcionais:
+        if opcional == '--noindex':
+            gera_index = False
+        elif opcional == '--seguro':
+            modo = MODO_SEGURO
+        elif opcional == '--continuar':
+            continuar = True
+        elif opcional == '--dir':
+            input_list = lista_entrada_dir(input_path)
+        else:
+            print(u'ERRO: Argumento opcional inválido: {}'.format(opcional))
+            help()
             sys.exit(-1)
 
-        else:
-            print('Iniciando processamento em {}'.format(datetime.datetime.now()))
+    if continuar and tipo_output == 'csv':
+        print(u'ERRO: --continuar so pode ser usado com output sqlite ou postgres.')
+        sys.exit(-1)
 
-            cnpj_full(input_list, tipo_output, output_path, modo, continuar)
+    print('Iniciando processamento em {}'.format(datetime.datetime.now()))
 
-            if (gera_index) and (tipo_output == 'sqlite'):
-                cnpj_index(output_path, modo)
+    cnpj_full(input_list, tipo_output, output_path, modo, continuar)
 
-            print('Processamento concluido em {}'.format(datetime.datetime.now()))
+    if gera_index:
+        if tipo_output == 'sqlite':
+            cnpj_index(output_path, modo)
+        elif not em_arquivo:
+            cnpj_index_sgbd(tipo_output)
+
+    print('Processamento concluido em {}'.format(datetime.datetime.now()))
+
 
 if __name__ == "__main__":
     main()
