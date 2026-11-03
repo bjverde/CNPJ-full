@@ -352,7 +352,9 @@ Argumentos obrigatorios:
 
 Argumentos opcionais:
   --base: Especifica o arquivo do banco de dados de CNPJ em formato sqlite.
-           Caso nao seja especificado, usa o PATH_BD definido no config.py
+           Caso nao seja especificado, usa CNPJ_DB_ARQUIVO (variavel de
+           ambiente ou arquivo .env na raiz do projeto) e, sem ela, o banco
+           de teste dados_teste/cnpj_teste.db.
 
   --nivel: Especifica a profundidade da consulta em número de pulos.
             Ex: Caso seja especificado --nivel 1, busca o item e as
@@ -385,6 +387,7 @@ Argumentos opcionais:
            Os dados da consulta ficam em <caminho output>/cache.json.
 
 Exemplos: 
+  python consulta.py cnpj 10000001000190 resultado --viz   (banco de teste, sem --base)
   python consulta.py cnpj 00000000000191 folder --nivel 1 --viz
   python consulta.py file data/input.csv pasta --csv --gexf
   python consulta.py nome_socio "FULANO SICRANO" output --graphml --viz
@@ -447,6 +450,13 @@ def main():
                 else:
                     print('Parametro opcional invalido: {}'.format(opcional))
                     i_argv += 1
+
+        if not os.path.isfile(path_bd):
+            print('ERRO: banco SQLite nao encontrado: {}'.format(os.path.abspath(path_bd)))
+            print('Informe o arquivo com --base <arquivo> ou defina CNPJ_DB_ARQUIVO no .env '
+                  '({}). Veja docs/ambientes.md.'.format(config.ARQUIVO_ENV))
+            sys.exit(-1)
+        print('Banco: {}'.format(os.path.abspath(path_bd)))
 
         # Caso nenhum tipo de saida tenha sido selecionado, gera csv como default
         if not (csv+graphml+gexf+viz):

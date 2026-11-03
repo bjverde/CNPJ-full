@@ -1,8 +1,35 @@
-PATH_BD = 'data/CNPJ_full.db'
+import os
+
+# Raiz do projeto (pasta acima de cnpj_full/). Caminhos relativos do .env
+# sao resolvidos a partir daqui, e nao da pasta onde o comando foi rodado.
+RAIZ_PROJETO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+ARQUIVO_ENV = os.path.join(RAIZ_PROJETO, '.env')
+
+try:
+    from dotenv import load_dotenv
+    # Variaveis ja definidas no ambiente (ex.: docker run -e) tem prioridade
+    load_dotenv(ARQUIVO_ENV)
+except ImportError:  # python-dotenv e opcional para as consultas
+    pass
+
+
+def caminho_projeto(caminho):
+    '''Caminho absoluto: relativo a raiz do projeto quando nao for absoluto.'''
+    caminho = os.path.expanduser(caminho)
+    if os.path.isabs(caminho):
+        return caminho
+    return os.path.normpath(os.path.join(RAIZ_PROJETO, caminho))
+
+
+# Banco SQLite usado pelo consulta.py quando --base nao e informado.
+# Ordem: --base na linha de comando > CNPJ_DB_ARQUIVO (ambiente ou .env) > banco de teste.
+BANCO_TESTE = 'dados_teste/cnpj_teste.db'
+PATH_BD = caminho_projeto(os.getenv('CNPJ_DB_ARQUIVO') or BANCO_TESTE)
 NIVEL_MAX_DEFAULT = 3
 
-PATH_NAVEGADOR = ''
-#PATH_NAVEGADOR = 'C:/Program Files (x86)/Google/Chrome/Application/chrome.exe'
+# Navegador aberto automaticamente com o grafo.html (--viz). Vazio: nao abre.
+# Ex.: CNPJ_NAVEGADOR=C:/Program Files/Google/Chrome/Application/chrome.exe
+PATH_NAVEGADOR = os.getenv('CNPJ_NAVEGADOR', '')
 
 SEP_CSV = ';'
 COLUNAS_CSV =  ['tipo_pessoa',
@@ -91,4 +118,4 @@ QUALIFICACOES = {
     '73':'Presidente Residente ou Domiciliado no Exterior', 
     '74':'Sócio-Administrador Residente ou Domiciliado no Exterior', 
     '75':'Fundador Residente ou Domiciliado no Exterior'
-}
+}
