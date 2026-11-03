@@ -11,7 +11,7 @@ Este guia mostra como instalar e testar o CNPJ-full em:
 
 Nos quatro casos o teste é o mesmo: consultar uma empresa no **banco de teste** que já vem no repositório e abrir o grafo no navegador. Não é preciso baixar nada da Receita Federal para isso.
 
-* [Banco de teste](#banco-de-teste) (fictício, para o grafo) e [banco do cnpjrfb](#banco-do-cnpjrfb-dados-reais) (dados reais)
+* [Banco de teste](#banco-de-teste)
 * [Arquivo .env: onde fica o banco](#arquivo-env-onde-fica-o-banco)
 * [Roteiro de teste](#roteiro-de-teste) (os mesmos comandos em todos os ambientes)
 * [Usando outra imagem Docker (ex.: Debian 13 do cnpjrfb)](#usando-outra-imagem-docker-ex-debian-13-do-cnpjrfb)
@@ -38,18 +38,6 @@ O banco é gerado pelo script [`dados_teste/gerar_banco_teste.py`](../dados_test
 python dados_teste/gerar_banco_teste.py                 # recria dados_teste/cnpj_teste.db
 python dados_teste/gerar_banco_teste.py --zips dados    # também guarda os ZIPs em "dados" (para testar a carga)
 ```
-
-## Banco do cnpjrfb (dados reais)
-
-O [`dados_teste/cnpjrfb.db`](../dados_teste) (3,4 MB) é uma cópia do banco de exemplo do [cnpjrfb](https://github.com/bjverde/cnpjrfb) (`www/cnpjrfb/app/database/cnpjrfb.db`), com o mesmo modelo. Tem **dados reais** da RF: 10.000 empresas, 9.993 estabelecimentos, 5.628 sócios e 1.000 registros do Simples. Serve para testar volume, nomes reais e as mesmas consultas que o cnpjrfb faz.
-
-Ele foi montado com as primeiras linhas de cada arquivo da RF, por isso as tabelas quase não se cruzam (só 81 estabelecimentos têm a empresa na base) e o grafo mostra no máximo a empresa e um sócio. Para testar o grafo com vários níveis, use o banco fictício acima.
-
-```bash
-python cnpj_full/consulta.py cnpj 00000007000103 resultado --base dados_teste/cnpjrfb.db --viz --csv
-```
-
-Ou, no `.env`: `CNPJ_DB_ARQUIVO=dados_teste/cnpjrfb.db`.
 
 # Arquivo .env: onde fica o banco
 

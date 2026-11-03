@@ -15,7 +15,6 @@ cnpj_full/              Código Python
 dados_teste/            Banco de teste versionado (dados fictícios)
   cnpj_teste.db         Banco SQLite pequeno, padrão das consultas sem --base
   gerar_banco_teste.py  Gera os ZIPs no formato da RF e recria o cnpj_teste.db
-  cnpjrfb.db            Cópia do banco de exemplo do cnpjrfb (dados reais, 10 mil empresas)
 docs/                   Documentação
   ambientes.md          Instalação e teste no Windows, Linux e Docker; .env
   cache.md              Exemplos do cache do grafo (--cache)

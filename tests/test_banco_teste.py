@@ -70,15 +70,6 @@ def test_consulta_sem_base_usa_banco_teste(tmp_path):
         assert (saida / arquivo).is_file()
 
 
-def test_consulta_no_banco_do_cnpjrfb(tmp_path):
-    saida = tmp_path / 'resultado'
-    consulta.consulta('cnpj', '00000007000103', config.QUALIFICACOES,
-                      os.path.join(RAIZ, 'dados_teste', 'cnpjrfb.db'), 3, str(saida),
-                      csv=True, colunas_csv=config.COLUNAS_CSV, csv_sep=config.SEP_CSV, viz=True)
-    assert (saida / 'grafo.html').is_file()
-    assert 'ADVOCACIA BERGANTIN' in (saida / 'pessoas.csv').read_text(encoding='utf-8')
-
-
 def test_consulta_base_inexistente(tmp_path):
     env = dict(os.environ, CNPJ_DB_ARQUIVO=str(tmp_path / 'nao_existe.db'))
     r = subprocess.run([sys.executable, os.path.join(RAIZ, 'cnpj_full', 'consulta.py'),
