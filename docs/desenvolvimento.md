@@ -16,7 +16,6 @@ cnpj_full/              Código Python
   viz/LICENSE-d3.txt    Licença do d3.js (ISC)
   extra_csv/            Scripts para separar o estabelecimento.csv por UF ou município
 dados_teste/            Banco de teste versionado (dados fictícios)
-  README.md             O que tem no banco de teste e consultas de exemplo
   cnpj_teste.db         Banco SQLite pequeno, padrão das consultas sem --base
   gerar_banco_teste.py  Gera os ZIPs no formato da RF e recria o cnpj_teste.db
 docs/                   Documentação (índice no README) e imagens

@@ -12,7 +12,7 @@ Para isso o projeto também faz o trabalho pesado com os arquivos da RF: baixa a
 
 ## Experimente sem baixar nada
 
-O repositório já traz um [banco de teste](dados_teste/README.md) pequeno, com dados fictícios, que é o banco padrão das consultas. Dá para ver o grafo funcionando logo depois do clone, sem baixar nada da Receita:
+O repositório já traz um [banco de teste](docs/ambientes.md#banco-de-teste) pequeno, com dados fictícios, que é o banco padrão das consultas. Dá para ver o grafo funcionando logo depois do clone, sem baixar nada da Receita:
 
 ```bash
 python cnpj_full/consulta.py cnpj 10000001000190 resultado --viz   # depois abra resultado/grafo.html
@@ -25,7 +25,7 @@ Antes é preciso instalar o Python 3.13 (ou usar Docker) e as bibliotecas: o [gu
 O [**guia de uso**](docs/ambientes.md) segue o caminho completo, da instalação à consulta na base real:
 
 1. [Instalação](docs/ambientes.md#1-instalação): Windows, Linux, Docker no Windows e Docker no Linux
-2. [Teste do ambiente](docs/ambientes.md#2-teste-do-ambiente) com o banco de teste
+2. [Teste do ambiente](docs/ambientes.md#2-teste-do-ambiente) com o [banco de teste](docs/ambientes.md#banco-de-teste): conteúdo, CNPJs de exemplo e como recriar
 3. [Download dos arquivos da RF](docs/ambientes.md#3-download-dos-arquivos-da-receita)
 4. [Carga no banco](docs/ambientes.md#4-carga-no-banco)
 5. [Consulta com os dados reais](docs/ambientes.md#5-consulta-com-os-dados-reais)
@@ -37,7 +37,6 @@ Referência de cada parte:
 * [Carga no PostgreSQL](docs/postgresql.md): conexão no `.env`, modelo e como a carga funciona
 * [Consultas e grafo](docs/consultas.md): tipos de consulta, arquivos gerados, configuração, classe `RedeCNPJ` e CPF mascarado/LGPD
 * [Cache do grafo](docs/cache.md): exemplos do `--cache`
-* [Banco de teste](dados_teste/README.md): o que tem nele, consultas de exemplo e como recriar
 * [Desenvolvimento](docs/desenvolvimento.md): estrutura de pastas, testes e roteiro
 * [Dicionário de dados da Receita Federal](docs/cnpj-metadados.pdf)
 
