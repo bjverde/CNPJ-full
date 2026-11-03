@@ -16,7 +16,7 @@ from decimal import Decimal
 
 import pytest
 
-from cnpj_full import cnpj
+from cnpj_full import carga
 
 psycopg = pytest.importorskip('psycopg')
 
@@ -48,10 +48,10 @@ def schema():
 def carrega_pg(zips, schema, continuar=False, indices=True):
     from cnpj_full.sgbd import postgres
     entrada = sorted(os.path.join(zips, f) for f in os.listdir(zips) if f.endswith('.zip'))
-    cnpj.cnpj_full(entrada, 'postgres', continuar=continuar,
+    carga.cnpj_full(entrada, 'postgres', continuar=continuar,
                    destino=postgres.Destino(config(schema)))
     if indices:
-        cnpj.cnpj_index_sgbd('postgres', destino=postgres.Destino(config(schema)))
+        carga.cnpj_index_sgbd('postgres', destino=postgres.Destino(config(schema)))
 
 
 @pytest.fixture
@@ -108,18 +108,18 @@ def test_controle_carga_e_indices(zips, schema, con):
 
 
 def test_interrupcao_e_continuar(zips, schema, con, monkeypatch):
-    original = cnpj.le_arquivo
+    original = carga.le_arquivo
 
     def le_arquivo_falha(tabela, caminho, membro, estatisticas=None):
         for bloco in original(tabela, caminho, membro, estatisticas):
             yield bloco
-            if tabela == cnpj.SOCIOS:
+            if tabela == carga.SOCIOS:
                 raise KeyboardInterrupt('interrupcao simulada')
 
-    monkeypatch.setattr(cnpj, 'le_arquivo', le_arquivo_falha)
+    monkeypatch.setattr(carga, 'le_arquivo', le_arquivo_falha)
     with pytest.raises(KeyboardInterrupt):
         carrega_pg(zips, schema, indices=False)
-    monkeypatch.setattr(cnpj, 'le_arquivo', original)
+    monkeypatch.setattr(carga, 'le_arquivo', original)
 
     # O arquivo interrompido foi desfeito
     assert um(con, 'SELECT COUNT(*) FROM {}.socios'.format(schema))[0] == 0
@@ -143,6 +143,6 @@ def test_valores_invalidos_viram_null():
         'cnpj_basico': ['1', '2'], 'opcao_pelo_simples': ['S', 'N'],
         'data_opcao_simples': ['20241399', '20240131'], 'data_exclusao_simples': [None, None],
         'opcao_mei': ['N', 'N'], 'data_opcao_mei': [None, None], 'data_exclusao_mei': [None, None]})
-    df = Destino.prepara_bloco(cnpj.SIMPLES, df)
+    df = Destino.prepara_bloco(carga.SIMPLES, df)
     assert pd.isna(df['data_opcao_simples'][0])
     assert df['data_opcao_simples'][1] == '2024-01-31'

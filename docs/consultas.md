@@ -2,7 +2,7 @@
 
 # Consultas e grafo de relacionamentos
 
-As consultas trazem empresas e sócios específicos e a rede de relacionamentos até a profundidade desejada. Funcionam sobre o banco SQLite gerado pelo `cnpj_full/cnpj.py`.
+As consultas trazem empresas e sócios específicos e a rede de relacionamentos até a profundidade desejada. Funcionam sobre o banco SQLite gerado pelo `cnpj_full/carga.py`.
 
 Como funciona a rede no layout novo:
 * Os sócios são vinculados ao **CNPJ básico** (8 primeiros dígitos). No grafo, a empresa é representada pelo estabelecimento **matriz**.

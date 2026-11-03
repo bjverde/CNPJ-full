@@ -41,7 +41,7 @@ jobs:
       - name: Roteiro - gera os ZIPs de teste e faz a carga
         run: |
           python dados_teste/gerar_banco_teste.py --saida saida_teste/cnpj_teste.db --zips dados_zips
-          python cnpj_full/cnpj.py dados_zips sqlite saida_carga --dir
+          python cnpj_full/carga.py dados_zips sqlite saida_carga --dir
           python cnpj_full/consulta.py cnpj 20000001000143 resultado2 --base saida_carga/CNPJ_full.db --viz
 
   docker:
@@ -103,4 +103,4 @@ jobs:
           CNPJ_DB_NOME: cnpj_roteiro
         run: |
           python dados_teste/gerar_banco_teste.py --saida saida_teste/cnpj_teste.db --zips dados_zips
-          python cnpj_full/cnpj.py dados_zips postgres --dir
+          python cnpj_full/carga.py dados_zips postgres --dir

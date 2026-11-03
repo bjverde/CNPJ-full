@@ -1,5 +1,5 @@
 def get_header_index(column):
-    # Colunas do arquivo estabelecimento.csv gerado pelo cnpj.py
+    # Colunas do arquivo estabelecimento.csv gerado pelo carga.py
     header = {
         'cnpj_basico': 0,
         'cnpj_ordem': 1,

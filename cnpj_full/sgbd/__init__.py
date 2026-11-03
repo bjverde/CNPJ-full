@@ -1,6 +1,6 @@
 # -*- encoding: utf-8 -*-
 '''
-Destinos de carga em SGBDs (alem do SQLite, que fica em cnpj.py).
+Destinos de carga em SGBDs (alem do SQLite, que fica em carga.py).
 
 Cada SGBD tem um modulo com uma classe Destino<SGBD> com a mesma interface:
 

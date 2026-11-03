@@ -1,0 +1,858 @@
+# -*- encoding: utf-8 -*-
+'''
+Carga dos dados abertos do CNPJ da Receita Federal (layout a partir de 2021).
+
+A RF disponibiliza os dados em varios arquivos ZIP, cada um contendo um CSV
+sem cabecalho, separado por ";", com campos entre aspas e encoding latin-1:
+    Empresas0..9.zip, Estabelecimentos0..9.zip, Socios0..9.zip, Simples.zip,
+    Cnaes.zip, Motivos.zip, Municipios.zip, Naturezas.zip, Paises.zip,
+    Qualificacoes.zip
+
+Este script converte esses arquivos em um banco SQLite, em CSVs tratados
+ou grava direto em um SGBD (PostgreSQL; conexao no .env), usando a mesma nomenclatura de tabelas e colunas do modelo
+de banco do projeto cnpjrfb (modelo_banco/sqlite/modelo_sqlite.sql).
+'''
+import os
+import re
+import glob
+import sys
+import csv
+import zipfile
+import io
+import datetime
+import warnings
+
+import pandas as pd
+
+if __package__ in (None, ''):
+    # Rodando como arquivo (python cnpj_full/carga.py): permite importar o pacote
+    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+# CONSTANTES PARA DEFINICAO CENTRALIZADA DA NOMENCLATURA A SER UTILIZADA
+# Nomes das tabelas/arquivos
+EMPRESA = 'empresa'
+ESTABELECIMENTO = 'estabelecimento'
+SIMPLES = 'simples'
+SOCIOS = 'socios'
+CNAE = 'cnae'
+MOTIVO = 'moti'
+MUNICIPIO = 'munic'
+NATUREZA = 'natju'
+PAIS = 'pais'
+QUALIFICACAO = 'quals'
+
+# Colunas de cada tabela, na ordem em que aparecem nos arquivos da RF,
+# com o tipo usado na criacao da tabela no SQLite.
+# Codigos de dominio sao INTEGER para que o join funcione mesmo quando
+# um lado vem com zeros a esquerda e o outro nao (ex: "0001" x "1").
+# Campos com zeros a esquerda significativos (cnpj, cpf, cep...) sao TEXT.
+# Situacao cadastral e porte da empresa seguem o dicionario de dados da RF
+# (codigos de 2 digitos, ex: "02", "05"), como no modelo do cnpjrfb.
+COLUNAS = {
+    EMPRESA: [
+        ('cnpj_basico', 'TEXT'),
+        ('razao_social', 'TEXT'),
+        ('natureza_juridica', 'INTEGER'),
+        ('qualificacao_responsavel', 'INTEGER'),
+        ('capital_social', 'REAL'),
+        ('porte_empresa', 'TEXT'),
+        ('ente_federativo_responsavel', 'TEXT'),
+    ],
+    ESTABELECIMENTO: [
+        ('cnpj_basico', 'TEXT'),
+        ('cnpj_ordem', 'TEXT'),
+        ('cnpj_dv', 'TEXT'),
+        ('identificador_matriz_filial', 'INTEGER'),
+        ('nome_fantasia', 'TEXT'),
+        ('situacao_cadastral', 'TEXT'),
+        ('data_situacao_cadastral', 'TEXT'),
+        ('motivo_situacao_cadastral', 'INTEGER'),
+        ('nome_cidade_exterior', 'TEXT'),
+        ('pais', 'INTEGER'),
+        ('data_inicio_atividade', 'TEXT'),
+        ('cnae_fiscal_principal', 'INTEGER'),
+        ('cnae_fiscal_secundaria', 'TEXT'),
+        ('tipo_logradouro', 'TEXT'),
+        ('logradouro', 'TEXT'),
+        ('numero', 'TEXT'),
+        ('complemento', 'TEXT'),
+        ('bairro', 'TEXT'),
+        ('cep', 'TEXT'),
+        ('uf', 'TEXT'),
+        ('municipio', 'INTEGER'),
+        ('ddd_1', 'TEXT'),
+        ('telefone_1', 'TEXT'),
+        ('ddd_2', 'TEXT'),
+        ('telefone_2', 'TEXT'),
+        ('ddd_fax', 'TEXT'),
+        ('fax', 'TEXT'),
+        ('correio_eletronico', 'TEXT'),
+        ('situacao_especial', 'TEXT'),
+        ('data_situacao_especial', 'TEXT'),
+    ],
+    SIMPLES: [
+        ('cnpj_basico', 'TEXT'),
+        ('opcao_pelo_simples', 'TEXT'),
+        ('data_opcao_simples', 'TEXT'),
+        ('data_exclusao_simples', 'TEXT'),
+        ('opcao_mei', 'TEXT'),
+        ('data_opcao_mei', 'TEXT'),
+        ('data_exclusao_mei', 'TEXT'),
+    ],
+    SOCIOS: [
+        ('cnpj_basico', 'TEXT'),
+        ('identificador_socio', 'INTEGER'),
+        ('nome_socio_razao_social', 'TEXT'),
+        ('cpf_cnpj_socio', 'TEXT'),
+        ('qualificacao_socio', 'INTEGER'),
+        ('data_entrada_sociedade', 'TEXT'),
+        ('pais', 'INTEGER'),
+        ('representante_legal', 'TEXT'),
+        ('nome_do_representante', 'TEXT'),
+        ('qualificacao_representante_legal', 'INTEGER'),
+        ('faixa_etaria', 'INTEGER'),
+    ],
+}
+
+COLUNAS_DOMINIO = [('codigo', 'INTEGER'), ('descricao', 'TEXT')]
+for _tabela in [CNAE, MOTIVO, MUNICIPIO, NATUREZA, PAIS, QUALIFICACAO]:
+    COLUNAS[_tabela] = COLUNAS_DOMINIO
+
+# Identificacao do tipo de arquivo. Primeiro pelo nome do arquivo dentro do
+# zip (ex: K3241.K03200Y0.D40210.EMPRECSV), depois pelo nome do zip
+# (ex: Empresas0.zip). A ordem importa.
+PADROES_ARQUIVO = [
+    (ESTABELECIMENTO, r'ESTABELE'),
+    (EMPRESA, r'EMPRE'),
+    (SOCIOS, r'SOCIO'),
+    (SIMPLES, r'SIMPLES'),
+    (CNAE, r'CNAE'),
+    (MOTIVO, r'MOTI'),
+    (MUNICIPIO, r'MUNIC'),
+    (NATUREZA, r'NATJU|NATUREZA'),
+    (PAIS, r'PAIS'),
+    (QUALIFICACAO, r'QUALS|QUALIFICA'),
+]
+
+# Ordem de processamento (tabelas de dominio primeiro, por serem pequenas)
+ORDEM_TABELAS = [CNAE, MOTIVO, MUNICIPIO, NATUREZA, PAIS, QUALIFICACAO,
+                 EMPRESA, ESTABELECIMENTO, SIMPLES, SOCIOS]
+
+COLUNAS_DATA = {
+    ESTABELECIMENTO: ['data_situacao_cadastral', 'data_inicio_atividade',
+                      'data_situacao_especial'],
+    SIMPLES: ['data_opcao_simples', 'data_exclusao_simples',
+              'data_opcao_mei', 'data_exclusao_mei'],
+    SOCIOS: ['data_entrada_sociedade'],
+}
+
+# (<nome_do_indice>,<tabela>,<coluna(s)>)
+INDICES = [
+    ('empresa_cnpj_basico', EMPRESA, 'cnpj_basico'),
+    ('estabelecimento_cnpj', ESTABELECIMENTO, 'cnpj_basico, cnpj_ordem, cnpj_dv'),
+    ('simples_cnpj_basico', SIMPLES, 'cnpj_basico'),
+    ('socios_cnpj_basico', SOCIOS, 'cnpj_basico'),
+    ('socios_cpf_cnpj', SOCIOS, 'cpf_cnpj_socio'),
+    ('socios_nome', SOCIOS, 'nome_socio_razao_social'),
+] + [('{}_codigo'.format(t), t, 'codigo')
+     for t in [CNAE, MOTIVO, MUNICIPIO, NATUREZA, PAIS, QUALIFICACAO]]
+
+PREFIXO_INDICE = 'ix_'
+
+CHUNKSIZE = 200000
+
+ENCODING = 'latin-1'
+
+NOME_ARQUIVO_SQLITE = 'CNPJ_full.db'
+
+# Modos de gravacao do SQLite durante a carga e a criacao de indices.
+#
+# Rapido (padrao): sem journal e sem sync em disco. A gravacao fica bem mais
+# rapida, mas se o processo for interrompido (queda de energia, Ctrl+C, erro)
+# o arquivo pode ficar corrompido, e a carga precisa ser refeita do zero.
+#
+# Seguro (--seguro): modo normal do SQLite, com journal e sync em disco.
+# Mais lento, mas uma interrupcao desfaz apenas o arquivo que estava sendo
+# gravado, e a carga pode ser retomada com --continuar.
+#
+# Em ambos os modos, cada arquivo da RF e gravado em uma unica transacao e
+# registrado na tabela de controle ao terminar.
+PRAGMAS_COMUNS = [
+    'cache_size = -262144',  # 256 MB de cache de paginas
+]
+PRAGMAS_RAPIDO = [
+    'journal_mode = OFF',
+    'synchronous = OFF',
+    'locking_mode = EXCLUSIVE',
+]
+PRAGMAS_SEGURO = [
+    'journal_mode = DELETE',
+    'synchronous = FULL',
+]
+
+MODO_RAPIDO = 'rapido'
+MODO_SEGURO = 'seguro'
+
+# Tabela com os arquivos ja carregados, usada pelo --continuar
+CONTROLE = 'controle_carga'
+
+
+def conecta_sqlite(output_path, modo=MODO_RAPIDO):
+    import sqlite3
+    # isolation_level=None: as transacoes sao controladas explicitamente
+    conBD = sqlite3.connect(os.path.join(output_path, NOME_ARQUIVO_SQLITE),
+                            isolation_level=None)
+    pragmas = PRAGMAS_COMUNS + (PRAGMAS_SEGURO if modo == MODO_SEGURO else PRAGMAS_RAPIDO)
+    for pragma in pragmas:
+        conBD.execute('PRAGMA ' + pragma)
+    return conBD
+
+
+def fecha_sqlite(conBD):
+    # Volta o journal ao modo padrao para o uso normal do banco (consultas)
+    conBD.execute('PRAGMA journal_mode = DELETE')
+    conBD.close()
+
+
+def identifica_tabela(nome):
+    nome = os.path.basename(nome).upper()
+    for tabela, padrao in PADROES_ARQUIVO:
+        if re.search(padrao, nome):
+            return tabela
+    return None
+
+
+def lista_arquivos(input_list):
+    '''Retorna lista de (tabela, caminho, membro_zip) para cada arquivo de
+    dados encontrado. membro_zip e None para arquivos ja descompactados.'''
+    arquivos = []
+    for caminho in input_list:
+        if zipfile.is_zipfile(caminho):
+            with zipfile.ZipFile(caminho) as zf:
+                for membro in zf.namelist():
+                    if membro.endswith('/'):
+                        continue
+                    tabela = identifica_tabela(membro) or identifica_tabela(caminho)
+                    if tabela:
+                        arquivos.append((tabela, caminho, membro))
+                    else:
+                        print('Arquivo ignorado (tipo nao identificado): {} [{}]'.format(caminho, membro))
+        else:
+            tabela = identifica_tabela(caminho)
+            if tabela:
+                arquivos.append((tabela, caminho, None))
+            else:
+                print('Arquivo ignorado (tipo nao identificado): {}'.format(caminho))
+
+    arquivos.sort(key=lambda a: (ORDEM_TABELAS.index(a[0]), a[1], a[2] or ''))
+    return arquivos
+
+
+class ContaLinhas(io.RawIOBase):
+    '''Envolve o arquivo lido pelo pandas e conta as quebras de linha,
+    para conferir a quantidade de linhas fisicas sem ler o arquivo duas vezes.'''
+    def __init__(self, handle):
+        self.handle = handle
+        self.quebras = 0
+        self.ultimo_byte = b''
+
+    def readable(self):
+        return True
+
+    def readinto(self, buffer):
+        dados = self.handle.read(len(buffer))
+        n = len(dados)
+        buffer[:n] = dados
+        if dados:
+            self.quebras += dados.count(b'\n')
+            self.ultimo_byte = dados[-1:]
+        return n
+
+    def close(self):
+        self.handle.close()
+        super().close()
+
+    def linhas(self):
+        # Ultima linha sem quebra no final tambem conta
+        if self.ultimo_byte and self.ultimo_byte != b'\n':
+            return self.quebras + 1
+        return self.quebras
+
+
+def novas_estatisticas():
+    return {'linhas_arquivo': 0, 'registros_lidos': 0, 'registros_descartados': 0}
+
+
+def le_arquivo(tabela, caminho, membro, estatisticas=None):
+    '''Gerador de DataFrames (em blocos) de um arquivo da RF.
+    Se estatisticas (dict) for informado, preenche as quantidades de linhas
+    do arquivo, de registros lidos e de linhas descartadas por estarem mal
+    formadas (com mais campos do que o layout).'''
+    nomes = [c[0] for c in COLUNAS[tabela]]
+    if estatisticas is None:
+        estatisticas = novas_estatisticas()
+
+    if membro is None:
+        handle = open(caminho, 'rb')
+    else:
+        zf = zipfile.ZipFile(caminho)
+        handle = zf.open(membro)
+    contador = ContaLinhas(handle)
+
+    try:
+        leitor = pd.read_csv(io.BufferedReader(contador),
+                             sep=';',
+                             header=None,
+                             names=nomes,
+                             dtype=str,
+                             quotechar='"',
+                             keep_default_na=False,
+                             na_values=[''],
+                             encoding=ENCODING,
+                             encoding_errors='replace',
+                             on_bad_lines='warn',
+                             chunksize=CHUNKSIZE)
+        while True:
+            # Captura os avisos de linhas descartadas para conta-las
+            with warnings.catch_warnings(record=True) as avisos:
+                warnings.simplefilter('always', pd.errors.ParserWarning)
+                try:
+                    bloco = next(leitor)
+                except StopIteration:
+                    bloco = None
+
+            for aviso in avisos:
+                mensagem = str(aviso.message)
+                if issubclass(aviso.category, pd.errors.ParserWarning):
+                    estatisticas['registros_descartados'] += len(re.findall(r'Skipping line', mensagem))
+                print('\nAVISO: {}'.format(mensagem.strip()), file=sys.stderr)
+
+            if bloco is None:
+                break
+
+            estatisticas['registros_lidos'] += len(bloco)
+            yield trata_bloco(tabela, bloco)
+
+        estatisticas['linhas_arquivo'] = contador.linhas()
+    finally:
+        contador.close()
+        if membro is not None:
+            zf.close()
+
+
+def avalia_estatisticas(est):
+    '''Retorna (status, observacao) comparando as quantidades de um arquivo.'''
+    problemas = []
+    if est['registros_gravados'] != est['registros_lidos']:
+        problemas.append('{} registros lidos, mas {} gravados'.format(
+            est['registros_lidos'], est['registros_gravados']))
+    if est['registros_descartados'] > 0:
+        problemas.append('{} linhas mal formadas descartadas'.format(est['registros_descartados']))
+    diferenca = est['linhas_arquivo'] - est['registros_lidos'] - est['registros_descartados']
+    if diferenca != 0:
+        problemas.append('{} linhas no arquivo, {} lidas + descartadas (diferenca de {}; '
+                         'pode ser quebra de linha dentro de um campo)'.format(
+                             est['linhas_arquivo'],
+                             est['registros_lidos'] + est['registros_descartados'],
+                             diferenca))
+    if problemas:
+        return 'DIVERGENTE', '; '.join(problemas)
+    return 'OK', ''
+
+
+def imprime_verificacao(linhas):
+    '''Imprime o resumo da verificacao. linhas: lista de dicts com tabela,
+    arquivo, membro, linhas_arquivo, registros_lidos, registros_descartados,
+    registros_gravados, status e observacao.'''
+    print(u'\nVerificacao das quantidades por arquivo:')
+    print(u'  {:<8} {:>12} {:>12} {:>11} {:>12}  {:<16} {}'.format(
+        'status', 'linhas arq.', 'lidos', 'descartados', 'gravados', 'tabela', 'arquivo'))
+    for l in linhas:
+        print(u'  {:<8} {:>12} {:>12} {:>11} {:>12}  {:<16} {}{}'.format(
+            'OK' if l['status'] == 'OK' else 'DIVERG.',
+            l['linhas_arquivo'], l['registros_lidos'], l['registros_descartados'],
+            l['registros_gravados'], l['tabela'], l['arquivo'],
+            ' [{}]'.format(l['membro']) if l['membro'] else ''))
+
+    divergentes = [l for l in linhas if l['status'] != 'OK']
+    if divergentes:
+        print(u'\nATENCAO! {} arquivo(s) com divergencia:'.format(len(divergentes)))
+        for l in divergentes:
+            print(u'  {}: {}'.format(l['arquivo'], l['observacao']))
+    else:
+        print(u'\nTodos os arquivos conferem.')
+
+
+def trata_bloco(tabela, df):
+    # Remove espacos excedentes
+    for col in df.columns:
+        df[col] = df[col].str.strip()
+
+    # Datas zeradas ("0" ou "00000000") viram vazio
+    for col in COLUNAS_DATA.get(tabela, []):
+        df[col] = df[col].mask(df[col].str.fullmatch(r'0*', na=False))
+
+    if tabela == EMPRESA:
+        # Capital social vem com virgula decimal (ex: "1000,00")
+        df['capital_social'] = pd.to_numeric(
+            df['capital_social'].str.replace(',', '.', regex=False),
+            errors='coerce')
+
+        # Porte com 2 digitos, como no dicionario de dados (00, 01, 03, 05)
+        df['porte_empresa'] = df['porte_empresa'].str.zfill(2)
+
+    elif tabela == ESTABELECIMENTO:
+        # Situacao cadastral com 2 digitos (01, 02, 03, 04, 08)
+        df['situacao_cadastral'] = df['situacao_cadastral'].str.zfill(2)
+
+    elif tabela == SOCIOS:
+        # Representante legal inexistente vem como cpf zerado
+        sem_repres = df['representante_legal'].isin(['***000000**', '00000000000'])
+        df['representante_legal'] = df['representante_legal'].mask(sem_repres)
+        df['nome_do_representante'] = df['nome_do_representante'].mask(
+            sem_repres | (df['nome_do_representante'] == 'CPF INVALIDO'))
+
+    return df
+
+
+def cria_tabelas_sqlite(conBD, tabelas):
+    conBD.execute('BEGIN')
+    for tabela in tabelas:
+        colunas = ', '.join('{} {}'.format(nome, tipo) for nome, tipo in COLUNAS[tabela])
+        conBD.execute('DROP TABLE IF EXISTS {}'.format(tabela))
+        conBD.execute('CREATE TABLE {} ({})'.format(tabela, colunas))
+    conBD.execute('DROP TABLE IF EXISTS {}'.format(CONTROLE))
+    conBD.execute('''CREATE TABLE {} (
+                        tabela TEXT,
+                        arquivo TEXT,
+                        membro TEXT,
+                        modo TEXT,
+                        linhas_arquivo INTEGER,
+                        registros_lidos INTEGER,
+                        registros_descartados INTEGER,
+                        registros_gravados INTEGER,
+                        status TEXT,
+                        observacao TEXT,
+                        inicio TEXT,
+                        fim TEXT)'''.format(CONTROLE))
+    conBD.execute('COMMIT')
+
+
+def id_arquivo(caminho, membro):
+    # Identifica o arquivo pelo nome (sem a pasta), para que a carga possa
+    # ser retomada mesmo se a pasta de entrada mudar de lugar.
+    return os.path.basename(caminho), membro or ''
+
+
+def prepara_continuacao(conBD, tabelas):
+    '''Le a tabela de controle de uma carga anterior. Retorna o conjunto de
+    arquivos ja concluidos e os totais de registros por tabela.'''
+    existentes = set(r[0] for r in conBD.execute(
+        "SELECT name FROM sqlite_master WHERE type='table'"))
+
+    if CONTROLE not in existentes:
+        print(u'ERRO: Nao ha carga anterior para continuar neste banco. '
+              u'Rode a carga sem --continuar.')
+        sys.exit(-1)
+
+    # Arquivo iniciado e nao concluido em modo rapido: nao ha como desfazer
+    # a gravacao parcial, entao a carga precisa ser refeita do zero.
+    incompletos = conBD.execute(
+        'SELECT arquivo, membro, modo FROM {} WHERE fim IS NULL'.format(CONTROLE)).fetchall()
+    for arquivo, membro, modo in incompletos:
+        if modo != MODO_SEGURO:
+            print(u'''ERRO: A carga anterior foi interrompida no arquivo {} [{}] no modo rapido.
+Nesse modo a gravacao parcial nao pode ser desfeita e o banco pode estar
+corrompido. Rode a carga do zero (sem --continuar), de preferencia com --seguro.'''.format(arquivo, membro))
+            sys.exit(-1)
+
+    # No modo seguro, o arquivo interrompido teve seus dados desfeitos pelo
+    # SQLite; basta apagar o registro de controle e carregar de novo.
+    conBD.execute('DELETE FROM {} WHERE fim IS NULL'.format(CONTROLE))
+
+    for tabela in tabelas:
+        if tabela not in existentes:
+            colunas = ', '.join('{} {}'.format(nome, tipo) for nome, tipo in COLUNAS[tabela])
+            conBD.execute('CREATE TABLE {} ({})'.format(tabela, colunas))
+
+    concluidos = set()
+    totais = {t: 0 for t in tabelas}
+    for tabela, arquivo, membro, registros in conBD.execute(
+            'SELECT tabela, arquivo, membro, registros_gravados FROM {}'.format(CONTROLE)):
+        concluidos.add((arquivo, membro))
+        if tabela in totais:
+            totais[tabela] += registros
+
+    return concluidos, totais
+
+
+def grava_arquivo_sqlite(conBD, tabela, caminho, membro, modo, totais):
+    arquivo, nome_membro = id_arquivo(caminho, membro)
+    agora = lambda: datetime.datetime.now().isoformat(timespec='seconds')
+
+    # Registra o inicio antes da transacao do arquivo, para saber depois
+    # se ele foi interrompido no meio.
+    conBD.execute("INSERT INTO {} (tabela, arquivo, membro, modo, status, inicio) "
+                  "VALUES (?, ?, ?, ?, 'EM ANDAMENTO', ?)".format(CONTROLE),
+                  (tabela, arquivo, nome_membro, modo, agora()))
+    id_controle = conBD.execute('SELECT last_insert_rowid()').fetchone()[0]
+
+    nomes = [c[0] for c in COLUNAS[tabela]]
+    sql_insert = 'INSERT INTO {} ({}) VALUES ({})'.format(
+        tabela, ', '.join(nomes), ', '.join('?' * len(nomes)))
+
+    # Os registros deste arquivo sao os de rowid acima do maior atual
+    rowid_inicial = conBD.execute(
+        'SELECT COALESCE(MAX(rowid), 0) FROM {}'.format(tabela)).fetchone()[0]
+
+    est = novas_estatisticas()
+    conBD.execute('BEGIN')
+    try:
+        for i_bloco, df in enumerate(le_arquivo(tabela, caminho, membro, est)):
+            linhas = df.astype(object).where(df.notna(), None).itertuples(index=False, name=None)
+            conBD.executemany(sql_insert, linhas)
+
+            print('Bloco {}: {} registros de {} ate agora.'.format(
+                i_bloco + 1, totais[tabela] + est['registros_lidos'], tabela), end='\r')
+
+        # Confere no banco quantos registros deste arquivo foram gravados
+        est['registros_gravados'] = conBD.execute(
+            'SELECT COUNT(*) FROM {} WHERE rowid > ?'.format(tabela),
+            (rowid_inicial,)).fetchone()[0]
+        status, observacao = avalia_estatisticas(est)
+
+        conBD.execute('UPDATE {} SET linhas_arquivo = ?, registros_lidos = ?, '
+                      'registros_descartados = ?, registros_gravados = ?, '
+                      'status = ?, observacao = ?, fim = ? WHERE rowid = ?'.format(CONTROLE),
+                      (est['linhas_arquivo'], est['registros_lidos'],
+                       est['registros_descartados'], est['registros_gravados'],
+                       status, observacao, agora(), id_controle))
+        conBD.execute('COMMIT')
+    except BaseException:
+        # No modo rapido (sem journal) o SQLite nao consegue desfazer a
+        # gravacao; o registro de controle fica sem "fim" e o --continuar
+        # recusa retomar.
+        if modo == MODO_SEGURO and conBD.in_transaction:
+            conBD.execute('ROLLBACK')
+        raise
+
+    totais[tabela] += est['registros_gravados']
+
+
+def verificacao_sqlite(conBD):
+    colunas = ['tabela', 'arquivo', 'membro', 'linhas_arquivo', 'registros_lidos',
+               'registros_descartados', 'registros_gravados', 'status', 'observacao']
+    cursor = conBD.execute('SELECT {} FROM {} ORDER BY rowid'.format(', '.join(colunas), CONTROLE))
+    return [dict(zip(colunas, linha)) for linha in cursor]
+
+
+def grava_arquivo_csv(output_path, tabela, caminho, membro, totais, csv_iniciados):
+    nome_arquivo_csv = os.path.join(output_path, tabela + '.csv')
+    est = novas_estatisticas()
+    est['registros_gravados'] = 0
+    for i_bloco, df in enumerate(le_arquivo(tabela, caminho, membro, est)):
+        primeiro = tabela not in csv_iniciados
+        df.to_csv(nome_arquivo_csv,
+                  header=primeiro,
+                  mode='w' if primeiro else 'a',
+                  index=False,
+                  quoting=csv.QUOTE_NONNUMERIC)
+        csv_iniciados.add(tabela)
+        est['registros_gravados'] += len(df)
+
+        print('Bloco {}: {} registros de {} ate agora.'.format(
+            i_bloco + 1, totais[tabela] + est['registros_gravados'], tabela), end='\r')
+
+    totais[tabela] += est['registros_gravados']
+
+    arquivo, nome_membro = id_arquivo(caminho, membro)
+    est['status'], est['observacao'] = avalia_estatisticas(est)
+    est.update(tabela=tabela, arquivo=arquivo, membro=nome_membro)
+    return est
+
+
+TIPOS_ARQUIVO = ['csv', 'sqlite']
+
+
+def tipos_output():
+    from cnpj_full import sgbd
+    return TIPOS_ARQUIVO + list(sgbd.DESTINOS) + list(sgbd.SINONIMOS)
+
+
+def abre_sgbd(tipo_output, destino=None):
+    if destino is not None:
+        return destino
+    from cnpj_full import ambiente, sgbd
+    ambiente.carrega()
+    return sgbd.abre_destino(tipo_output)
+
+
+def carga_sgbd(arquivos, tabelas, tipo_output, continuar=False, destino=None):
+    '''Carga direto em um SGBD (PostgreSQL...). Conexao lida do .env.'''
+    destino = abre_sgbd(tipo_output, destino)
+    try:
+        if continuar:
+            concluidos, totais = destino.prepara_continuacao(tabelas)
+        else:
+            destino.cria_tabelas(tabelas)
+            concluidos, totais = set(), {t: 0 for t in tabelas}
+
+        for tabela, caminho, membro in arquivos:
+            descricao = '{}{} -> {}'.format(caminho, ' [{}]'.format(membro) if membro else '', tabela)
+            if id_arquivo(caminho, membro) in concluidos:
+                print('Ja carregado, pulando: {}'.format(descricao))
+                continue
+            print('Processando arquivo: {}'.format(descricao))
+            destino.grava_arquivo(tabela, caminho, membro, totais)
+            print()
+
+        imprime_verificacao(destino.verificacao())
+    except BaseException:
+        destino.fecha()
+        raise
+    destino.fecha()
+
+    print('\nCarga concluida. Total de registros por tabela:')
+    for tabela in tabelas:
+        print('  {}: {}'.format(tabela, totais[tabela]))
+
+
+def cnpj_index_sgbd(tipo_output, destino=None):
+    destino = abre_sgbd(tipo_output, destino)
+    try:
+        destino.cria_indices()
+    finally:
+        destino.fecha()
+
+
+def cnpj_full(input_list, tipo_output, output_path=None, modo=MODO_RAPIDO, continuar=False,
+              destino=None):
+    arquivos = lista_arquivos(input_list)
+
+    if not arquivos:
+        print(u'ERRO: Nenhum arquivo de dados da RF identificado.')
+        sys.exit(-1)
+
+    if tipo_output not in TIPOS_ARQUIVO:
+        tabelas = sorted(set(a[0] for a in arquivos), key=ORDEM_TABELAS.index)
+        return carga_sgbd(arquivos, tabelas, tipo_output, continuar, destino=destino)
+
+    if not os.path.exists(output_path):
+        os.makedirs(output_path)
+
+    tabelas = sorted(set(a[0] for a in arquivos), key=ORDEM_TABELAS.index)
+
+    totais = {t: 0 for t in tabelas}
+    concluidos = set()
+    csv_iniciados = set()
+    verificacao_csv = []
+
+    if tipo_output == 'sqlite':
+        print(u'Modo de gravacao: {}'.format(modo))
+        conBD = conecta_sqlite(output_path, modo)
+        if continuar:
+            concluidos, totais = prepara_continuacao(conBD, tabelas)
+        else:
+            cria_tabelas_sqlite(conBD, tabelas)
+
+    try:
+        processa_arquivos(arquivos, tipo_output, output_path, modo, conBD if tipo_output == 'sqlite' else None,
+                          concluidos, totais, csv_iniciados, verificacao_csv)
+    except BaseException:
+        # Libera o arquivo do banco (no modo rapido ele fica com lock exclusivo)
+        if tipo_output == 'sqlite':
+            conBD.close()
+        raise
+
+    if tipo_output == 'sqlite':
+        imprime_verificacao(verificacao_sqlite(conBD))
+        fecha_sqlite(conBD)
+    else:
+        imprime_verificacao(verificacao_csv)
+
+    print('\nConversao concluida. Total de registros por tabela:')
+    for tabela in tabelas:
+        print('  {}: {}'.format(tabela, totais[tabela]))
+
+    if tipo_output == 'csv':
+        print(u'Arquivos CSV gerados na pasta {}.'.format(output_path))
+
+    elif tipo_output == 'sqlite':
+        print(u'''
+Arquivo SQLITE gerado: {}
+OBS: Uso de índices altamente recomendado!
+              '''.format(os.path.join(output_path, NOME_ARQUIVO_SQLITE)))
+
+
+def processa_arquivos(arquivos, tipo_output, output_path, modo, conBD,
+                      concluidos, totais, csv_iniciados, verificacao_csv):
+    for tabela, caminho, membro in arquivos:
+        descricao = '{}{} -> {}'.format(caminho, ' [{}]'.format(membro) if membro else '', tabela)
+
+        if id_arquivo(caminho, membro) in concluidos:
+            print('Ja carregado, pulando: {}'.format(descricao))
+            continue
+
+        print('Processando arquivo: {}'.format(descricao))
+
+        if tipo_output == 'csv':
+            verificacao_csv.append(
+                grava_arquivo_csv(output_path, tabela, caminho, membro, totais, csv_iniciados))
+        elif tipo_output == 'sqlite':
+            grava_arquivo_sqlite(conBD, tabela, caminho, membro, modo, totais)
+        print()
+
+
+def cnpj_index(output_path, modo=MODO_RAPIDO):
+    conBD = conecta_sqlite(output_path, modo)
+
+    print(u'''
+Criando índices...
+Essa operaçao pode levar vários minutos.
+    ''')
+
+    cursorBD = conBD.cursor()
+    tabelas_existentes = set(r[0] for r in cursorBD.execute(
+        "SELECT name FROM sqlite_master WHERE type='table'"))
+
+    for nome, tabela, colunas in INDICES:
+        if tabela not in tabelas_existentes:
+            continue
+
+        nome_indice = PREFIXO_INDICE + nome
+
+        sql_stmt = 'CREATE INDEX IF NOT EXISTS {} ON {} ({});'.format(nome_indice, tabela, colunas)
+        cursorBD.execute(sql_stmt)
+
+        print(u'Index {} criado.'.format(nome_indice))
+
+    print(u'Indices criados com sucesso.')
+
+    fecha_sqlite(conBD)
+
+
+def help():
+    print('''
+carga.py - Carga dos dados abertos do CNPJ da Receita Federal
+
+Le os ZIPs (ou CSVs) baixados da Receita (Empresas, Estabelecimentos, Socios,
+Simples e tabelas de dominio) e grava em um banco SQLite, em CSVs tratados ou
+direto no PostgreSQL. Para baixar os arquivos use: python cnpj_full/download.py
+
+Uso: python cnpj_full/carga.py <entrada> sqlite <pasta saida> [--dir] [--noindex] [--seguro] [--continuar]
+     python cnpj_full/carga.py <entrada> csv    <pasta saida> [--dir]
+     python cnpj_full/carga.py <entrada> postgres              [--dir] [--noindex] [--continuar]
+
+Argumentos obrigatorios:
+  <entrada>      Pasta com os arquivos da RF (use --dir) ou um unico arquivo ZIP.
+  sqlite         Gera <pasta saida>/CNPJ_full.db (usado pelo consulta.py).
+  csv            Gera um CSV tratado por tabela em <pasta saida>.
+  postgres       Grava no PostgreSQL. A conexao vem do .env (CNPJ_DB_HOST,
+                 CNPJ_DB_PORTA, CNPJ_DB_NOME, CNPJ_DB_USUARIO, CNPJ_DB_SENHA,
+                 CNPJ_DB_SCHEMA). Veja o .env.example e docs/postgresql.md.
+  <pasta saida>  So para sqlite e csv: onde gravar (e criada se nao existir).
+
+Argumentos opcionais:
+  --dir          Le todos os ZIPs (ou CSVs) da pasta <entrada>.
+  --noindex      NAO cria os indices no fim (sem eles as consultas ficam lentas).
+  --seguro       So sqlite: grava com journal e sync em disco. Mais lento, mas
+                 uma interrupcao nao corrompe o banco e permite --continuar.
+  --continuar    Retoma uma carga sqlite ou postgres interrompida, pulando os
+                 arquivos ja concluidos. Use os mesmos arquivos de entrada.
+  -h, --help     Mostra esta ajuda.
+
+Exemplos:
+  python cnpj_full/carga.py dados/2026-10 sqlite saida --dir
+  python cnpj_full/carga.py dados/2026-10 sqlite saida --dir --seguro --continuar
+  python cnpj_full/carga.py dados/2026-10 csv saida --dir
+  python cnpj_full/carga.py dados/2026-10 postgres --dir
+  python cnpj_full/carga.py dados/2026-10 postgres --dir --continuar
+  python cnpj_full/carga.py dados/2026-10/Empresas0.zip sqlite saida
+
+Documentacao: docs/carga.md e docs/postgresql.md
+    ''')
+
+
+def lista_entrada_dir(input_path):
+    input_list = glob.glob(os.path.join(input_path, '*.zip'))
+
+    if not input_list:
+        # caso nao ache zip, procura arquivos descompactados.
+        input_list = [f for f in glob.glob(os.path.join(input_path, '*'))
+                      if os.path.isfile(f) and identifica_tabela(f)]
+
+    if not input_list:
+        # caso nem assim ache, indica erro.
+        print(u'ERRO: Nenhum arquivo válido encontrado no diretório!')
+        sys.exit(-1)
+
+    return sorted(input_list)
+
+
+def main():
+    if any(a in ('-h', '--help', '/?') for a in sys.argv[1:]):
+        help()
+        sys.exit(0)
+
+    posicionais = [a for a in sys.argv[1:] if not a.startswith('--')]
+    opcionais = [a for a in sys.argv[1:] if a.startswith('--')]
+
+    if len(posicionais) < 2:
+        help()
+        sys.exit(-1)
+
+    input_path = posicionais[0]
+    tipo_output = posicionais[1].lower()
+    em_arquivo = tipo_output in TIPOS_ARQUIVO
+
+    if tipo_output not in tipos_output():
+        print('''
+ERRO: tipo de output inválido.
+Escolha um dos seguintes tipos de output: csv, sqlite ou postgres.
+        ''')
+        help()
+        sys.exit(-1)
+
+    if em_arquivo and len(posicionais) < 3:
+        help()
+        sys.exit(-1)
+    output_path = posicionais[2] if em_arquivo else None
+
+    gera_index = True
+    modo = MODO_RAPIDO
+    continuar = False
+    input_list = [input_path]
+
+    for opcional in opcionais:
+        if opcional == '--noindex':
+            gera_index = False
+        elif opcional == '--seguro':
+            modo = MODO_SEGURO
+        elif opcional == '--continuar':
+            continuar = True
+        elif opcional == '--dir':
+            input_list = lista_entrada_dir(input_path)
+        else:
+            print(u'ERRO: Argumento opcional inválido: {}'.format(opcional))
+            help()
+            sys.exit(-1)
+
+    if continuar and tipo_output == 'csv':
+        print(u'ERRO: --continuar so pode ser usado com output sqlite ou postgres.')
+        sys.exit(-1)
+
+    print('Iniciando processamento em {}'.format(datetime.datetime.now()))
+
+    cnpj_full(input_list, tipo_output, output_path, modo, continuar)
+
+    if gera_index:
+        if tipo_output == 'sqlite':
+            cnpj_index(output_path, modo)
+        elif not em_arquivo:
+            cnpj_index_sgbd(tipo_output)
+
+    print('Processamento concluido em {}'.format(datetime.datetime.now()))
+
+
+if __name__ == "__main__":
+    main()

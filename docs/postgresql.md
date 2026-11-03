@@ -2,12 +2,12 @@
 
 # Carga no PostgreSQL
 
-Além de SQLite e CSV, o `cnpj.py` grava direto no PostgreSQL:
+Além de SQLite e CSV, o `carga.py` grava direto no PostgreSQL:
 
 ```bash
-python3 cnpj_full/cnpj.py dados/2026-10 postgres --dir                # carga completa + chaves e índices
-python3 cnpj_full/cnpj.py dados/2026-10 postgres --dir --noindex      # sem chaves e índices no fim
-python3 cnpj_full/cnpj.py dados/2026-10 postgres --dir --continuar    # retoma uma carga interrompida
+python3 cnpj_full/carga.py dados/2026-10 postgres --dir                # carga completa + chaves e índices
+python3 cnpj_full/carga.py dados/2026-10 postgres --dir --noindex      # sem chaves e índices no fim
+python3 cnpj_full/carga.py dados/2026-10 postgres --dir --continuar    # retoma uma carga interrompida
 ```
 
 Não há `<pasta saída>`: a conexão vem do `.env` (ou de variáveis de ambiente).

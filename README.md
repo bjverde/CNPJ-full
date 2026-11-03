@@ -62,9 +62,9 @@ Com a base completa da Receita:
 python cnpj_full/download.py
 
 # 4. Carregar no SQLite (gera saida/CNPJ_full.db, com índices)
-python cnpj_full/cnpj.py dados/2026-10 sqlite saida --dir
+python cnpj_full/carga.py dados/2026-10 sqlite saida --dir
 #    ou no PostgreSQL (conexão no .env, veja docs/postgresql.md)
-python cnpj_full/cnpj.py dados/2026-10 postgres --dir
+python cnpj_full/carga.py dados/2026-10 postgres --dir
 
 # 5. Consultar na base completa (ou ponha CNPJ_DB_ARQUIVO=saida/CNPJ_full.db no .env e omita o --base)
 python cnpj_full/consulta.py cnpj 00000000000191 resultado --base saida/CNPJ_full.db --nivel 2 --viz

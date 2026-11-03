@@ -444,15 +444,33 @@ def baixa(url=URL_PADRAO, destino=PASTA_PADRAO, competencia=None, somente_listar
 
     print(u'\nDownload concluido: {} baixado(s), {} ja existente(s).'.format(
         resumo['baixado'], resumo['existente']))
-    print(u'Para carregar: python cnpj_full/cnpj.py "{}" sqlite saida --dir'.format(pasta_local))
+    print(u'Para carregar: python cnpj_full/carga.py "{}" sqlite saida --dir'.format(pasta_local))
     return pasta_local
 
 
 def main(argv=None):
     ambiente.carrega()
     parser = argparse.ArgumentParser(
-        description='Baixa os dados abertos do CNPJ da Receita Federal '
-                    '(competencia mais recente, ou a informada).')
+        prog='python cnpj_full/download.py',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        description='''download.py - Download dos dados abertos do CNPJ da Receita Federal
+
+Entra no compartilhamento da RF, escolhe a competencia mais recente (ano mais
+recente e ultimo mes), ou a informada em --competencia, e baixa todos os
+arquivos para <destino>/<AAAA-MM>/. Sem argumentos, baixa a mais recente com
+as configuracoes padrao. Pode rodar de novo: pula o que ja foi baixado e
+continua downloads interrompidos.''',
+        epilog='''Exemplos:
+  python cnpj_full/download.py --listar               # so mostra o que seria baixado
+  python cnpj_full/download.py                        # baixa a mais recente em dados/AAAA-MM/
+  python cnpj_full/download.py --competencia 2026-09  # baixa outra competencia
+  python cnpj_full/download.py --destino D:/cnpj      # outra pasta
+  python cnpj_full/download.py --filtro "Cnaes|Paises"
+
+Depois: python cnpj_full/carga.py dados/AAAA-MM sqlite saida --dir
+Documentacao: docs/download.md''',
+        add_help=False)
+    parser.add_argument('-h', '--help', action='help', help='Mostra esta ajuda e sai')
     parser.add_argument('url', nargs='?', default=os.getenv('CNPJ_RF_URL') or URL_PADRAO,
                         help='URL do compartilhamento da RF (padrao: CNPJ_RF_URL do .env, '
                              'ou {})'.format(URL_PADRAO))

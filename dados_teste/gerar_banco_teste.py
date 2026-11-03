@@ -10,7 +10,7 @@ codigos e descricoes reais.
 O script:
   1. cria ZIPs no mesmo formato dos arquivos da Receita Federal (CSV sem
      cabecalho, separado por ";", campos entre aspas, encoding latin-1);
-  2. carrega esses ZIPs com o proprio cnpj_full/cnpj.py (mesmo caminho da
+  2. carrega esses ZIPs com o proprio cnpj_full/carga.py (mesmo caminho da
      carga real) e cria os indices.
 
 A geracao e deterministica (semente fixa): rodar de novo gera os mesmos dados.
@@ -37,7 +37,7 @@ PASTA = os.path.dirname(os.path.abspath(__file__))
 RAIZ = os.path.dirname(PASTA)
 sys.path.insert(0, RAIZ)
 
-from cnpj_full import cnpj  # noqa: E402
+from cnpj_full import carga  # noqa: E402
 
 ARQUIVO_PADRAO = os.path.join(PASTA, 'cnpj_teste.db')
 SEMENTE = 2026
@@ -388,11 +388,11 @@ def gera_banco(arquivo=ARQUIVO_PADRAO, pasta_zips=None):
     try:
         zips = gera_zips(pasta_zips or os.path.join(temporaria, 'zips'))
         saida = os.path.join(temporaria, 'saida')
-        cnpj.cnpj_full(zips, 'sqlite', saida, cnpj.MODO_SEGURO)
-        cnpj.cnpj_index(saida, cnpj.MODO_SEGURO)
+        carga.cnpj_full(zips, 'sqlite', saida, carga.MODO_SEGURO)
+        carga.cnpj_index(saida, carga.MODO_SEGURO)
         destino = os.path.abspath(arquivo)
         os.makedirs(os.path.dirname(destino), exist_ok=True)
-        shutil.move(os.path.join(saida, cnpj.NOME_ARQUIVO_SQLITE), destino)
+        shutil.move(os.path.join(saida, carga.NOME_ARQUIVO_SQLITE), destino)
     finally:
         shutil.rmtree(temporaria, ignore_errors=True)
     print('\nBanco de teste gerado: {}'.format(destino))

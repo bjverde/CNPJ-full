@@ -5,7 +5,7 @@
 ```
 cnpj_full/              Código Python
   download.py           Download dos arquivos da RF (competência mais recente)
-  cnpj.py               Carga dos arquivos da RF para SQLite, CSV ou SGBD
+  carga.py              Carga dos arquivos da RF para SQLite, CSV ou SGBD
   sgbd/                 Carga em SGBDs (postgres.py; um módulo por SGBD)
   ambiente.py           Leitura do .env da raiz do projeto
   consulta.py           Consultas por linha de comando e geração do grafo
@@ -35,7 +35,7 @@ docker-compose.yml      Serviço cnpj-full com a pasta do projeto montada em /ap
 .env.example            Exemplo do .env (caminho do banco e outras configurações)
 ```
 
-Os scripts podem ser rodados de qualquer pasta, como arquivo (`python3 cnpj_full/cnpj.py ...`) ou como módulo a partir da raiz do projeto (`python3 -m cnpj_full.cnpj ...`).
+Os scripts podem ser rodados de qualquer pasta, como arquivo (`python3 cnpj_full/carga.py ...`) ou como módulo a partir da raiz do projeto (`python3 -m cnpj_full.carga ...`).
 
 # Testes
 
@@ -59,7 +59,7 @@ Para gerar só a amostra (útil para experimentar sem baixar os arquivos da RF):
 
 ```bash
 python3 tests/amostra.py amostra
-python3 cnpj_full/cnpj.py amostra sqlite saida_amostra --dir
+python3 cnpj_full/carga.py amostra sqlite saida_amostra --dir
 python3 cnpj_full/consulta.py cnpj 11111111000272 resultado --base saida_amostra/CNPJ_full.db --viz
 ```
 

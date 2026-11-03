@@ -13,6 +13,8 @@ python3 cnpj_full/download.py --filtro "Cnaes|Paises" # só alguns arquivos (exp
 python3 cnpj_full/download.py https://outro.servidor/index.php/s/TOKEN   # outra URL
 ```
 
+Para ver a ajuda com todos os argumentos: `python cnpj_full/download.py --help`. Sem argumentos o script não mostra a ajuda: ele já baixa a competência mais recente com as configurações padrão.
+
 Argumento | Descrição | Padrão
 --------- | --------- | ------
 `url` | Endereço do compartilhamento da RF | `CNPJ_RF_URL` do `.env`, ou `https://arquivos.receitafederal.gov.br/index.php/s/YggdBLfdninEJX9`
@@ -49,8 +51,8 @@ São cerca de 7 GB compactados por competência. Reserve espaço para os ZIPs e 
 O script mostra no fim o comando de carga, por exemplo:
 
 ```bash
-python3 cnpj_full/cnpj.py dados/2026-10 sqlite saida --dir      # SQLite
-python3 cnpj_full/cnpj.py dados/2026-10 postgres --dir           # PostgreSQL (docs/postgresql.md)
+python3 cnpj_full/carga.py dados/2026-10 sqlite saida --dir      # SQLite
+python3 cnpj_full/carga.py dados/2026-10 postgres --dir           # PostgreSQL (docs/postgresql.md)
 ```
 
 ## Proxy

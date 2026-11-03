@@ -41,7 +41,7 @@ Consulta | O que mostra | Nós (nível 1 / 2 / 3)
 
 Exemplo: `python cnpj_full/consulta.py cnpj 50000001000104 resultado --nivel 3 --viz`.
 
-O banco é gerado pelo script [`dados_teste/gerar_banco_teste.py`](../dados_teste/gerar_banco_teste.py), que cria ZIPs no formato da RF e carrega com o próprio `cnpj_full/cnpj.py`. A geração é determinística: rodar de novo gera os mesmos dados. Os testes automáticos conferem que o `.db` versionado está igual ao que o script gera.
+O banco é gerado pelo script [`dados_teste/gerar_banco_teste.py`](../dados_teste/gerar_banco_teste.py), que cria ZIPs no formato da RF e carrega com o próprio `cnpj_full/carga.py`. A geração é determinística: rodar de novo gera os mesmos dados. Os testes automáticos conferem que o `.db` versionado está igual ao que o script gera.
 
 ```bash
 python dados_teste/gerar_banco_teste.py                 # recria dados_teste/cnpj_teste.db
@@ -94,9 +94,9 @@ Os mesmos três passos em todos os ambientes. Rode na raiz do projeto. Nos ambie
 # 1. Consulta no banco de teste e grafo (abra resultado/grafo.html no navegador)
 python cnpj_full/consulta.py cnpj 10000001000190 resultado --nivel 3 --viz --csv
 
-# 2. Carga: gera os ZIPs de teste no formato da RF e carrega com o cnpj.py
+# 2. Carga: gera os ZIPs de teste no formato da RF e carrega com o carga.py
 python dados_teste/gerar_banco_teste.py --saida saida_teste/cnpj_teste.db --zips dados_zips
-python cnpj_full/cnpj.py dados_zips sqlite saida_carga --dir
+python cnpj_full/carga.py dados_zips sqlite saida_carga --dir
 
 # 3. Consulta na base recém-carregada
 python cnpj_full/consulta.py cnpj 20000001000143 resultado2 --base saida_carga/CNPJ_full.db --viz
