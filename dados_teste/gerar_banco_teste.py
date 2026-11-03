@@ -22,6 +22,8 @@ Uso (a partir de qualquer pasta):
 
 Empresas para testar o grafo (CNPJ da matriz):
     10000001000190  ALFA HOLDING PARTICIPACOES S.A.  (grupo com controladas, socio estrangeiro e filiais)
+    50000001000104  CHARLIE PARTICIPACOES S.A.       (cadeia holding > industria > distribuidora > logistica)
+    60000001000168  PADARIA DELTA LTDA               (empresas de uma familia, ligadas por pessoas)
     20000001000143  BRAVO SERVICOS INTEGRADOS LTDA   (grupo menor, controlada de controlada)
 '''
 import os
@@ -39,6 +41,7 @@ from cnpj_full import cnpj  # noqa: E402
 
 ARQUIVO_PADRAO = os.path.join(PASTA, 'cnpj_teste.db')
 SEMENTE = 2026
+PESSOAS_GRUPOS = 30  # pessoas reservadas para os grupos economicos
 DATA_RF = 'D61011'  # sufixo dos nomes dos arquivos (so para imitar a RF)
 
 # ---------------------------------------------------------------------------
@@ -147,9 +150,10 @@ class Gerador:
         return (nome, cpf, self.rnd.randint(2, 8))  # faixa etaria
 
     def pessoa_popular(self):
-        # As primeiras pessoas da lista aparecem em mais empresas: forma ligacoes no grafo
-        indice = min(int(self.rnd.expovariate(1 / 18.0)), len(self.pessoas) - 1)
-        return self.pessoas[indice]
+        # Pessoas das empresas avulsas: cada uma aparece em algumas empresas e
+        # forma ligacoes. As pessoas 0 a 29 ficam reservadas para os grupos,
+        # para os grafos dos exemplos ficarem legiveis.
+        return self.rnd.choice(self.pessoas[PESSOAS_GRUPOS:])
 
     # -- registros ----------------------------------------------------------
     def empresa(self, basico, razao, natureza='2062', capital='10000,00', porte='01',
@@ -259,6 +263,61 @@ class Gerador:
         # Socio PJ que nao existe na base (aparece no grafo so com o CNPJ)
         self.socio_pj('20000003', '98765432000198', 'EMPRESA FORA DA BASE S.A.', '22')
 
+    def grupo_charlie(self):
+        '''Cadeia de participacoes: holding > industria > distribuidora > logistica.
+        A partir da holding, a logistica esta no nivel 3.'''
+        holding = self.empresa('50000001', 'CHARLIE PARTICIPACOES S.A.', '2054', '8000000,00', '05',
+                               '6462000', municipio=MUNICIPIOS[3], fantasia='GRUPO CHARLIE', simples=False)
+        self.socio_pf('50000001', self.pessoas[10], '16')
+        self.socio_pf('50000001', self.pessoas[11], '22')
+
+        industria = self.empresa('50000002', 'CHARLIE INDUSTRIA DE ALIMENTOS LTDA', '2062', '3000000,00',
+                                 '05', '4711302', filiais=2, municipio=MUNICIPIOS[3], simples=False)
+        self.socio_pj('50000002', holding, 'CHARLIE PARTICIPACOES S.A.', '22')
+        self.socio_pf('50000002', self.pessoas[12], '05')
+
+        distribuidora = self.empresa('50000003', 'CHARLIE DISTRIBUIDORA LTDA', '2062', '900000,00',
+                                     '05', '4712100', filiais=1, simples=False)
+        self.socio_pj('50000003', industria, 'CHARLIE INDUSTRIA DE ALIMENTOS LTDA', '22')
+        self.socio_pf('50000003', self.pessoas[13], '05')
+
+        self.empresa('50000004', 'CHARLIE LOGISTICA LTDA', '2062', '400000,00', '03', '4930202', simples=False)
+        self.socio_pj('50000004', distribuidora, 'CHARLIE DISTRIBUIDORA LTDA', '22')
+        self.socio_pf('50000004', self.pessoas[13], '49')
+
+        self.empresa('50000005', 'CHARLIE ATACADO LTDA', '2062', '250000,00', '03', '4711302', simples=False)
+        self.socio_pj('50000005', industria, 'CHARLIE INDUSTRIA DE ALIMENTOS LTDA', '22')
+        self.socio_pf('50000005', self.pessoas[12], '05')
+
+    def grupo_delta(self):
+        '''Empresas de uma familia, ligadas pelas pessoas (sem holding).
+        Uma socia tambem e socia do restaurante do presidente do grupo ALFA.'''
+        pai, mae, filho, filha = self.pessoas[14], self.pessoas[15], self.pessoas[16], self.pessoas[17]
+        self.empresa('60000001', 'PADARIA DELTA LTDA', '2062', '60000,00', '01', '5611201',
+                     filiais=1, municipio=MUNICIPIOS[0], fantasia='PADARIA DELTA', simples=True)
+        self.socio_pf('60000001', pai, '49')
+        self.socio_pf('60000001', mae, '49')
+        self.socio_pf('60000001', self.pessoas[4], '22')   # socia tambem do restaurante do grupo ALFA
+
+        self.empresa('60000002', 'DELTA RESTAURANTE E EVENTOS LTDA', '2062', '120000,00', '01',
+                     '5611201', municipio=MUNICIPIOS[0], fantasia='DELTA EVENTOS', simples=True)
+        self.socio_pf('60000002', mae, '49')
+        self.socio_pf('60000002', filho, '22')
+
+        self.empresa('60000003', 'DELTA CONSTRUCOES LTDA', '2062', '500000,00', '03', '4120400',
+                     municipio=MUNICIPIOS[0], simples=False)
+        self.socio_pf('60000003', filho, '49')
+        self.socio_pf('60000003', filha, '22')
+
+        self.empresa('60000004', '{} 0004'.format(filha[0]), '2135', '5000,00', '01', '9602501',
+                     municipio=MUNICIPIOS[0], fantasia='STUDIO DELTA', simples=True)
+        self.socio_pf('60000004', filha, '65')
+
+        self.empresa('60000005', 'DELTA CONTABILIDADE LTDA', '2062', '30000,00', '01', '6920601',
+                     municipio=MUNICIPIOS[0], situacao='08', simples=False)
+        self.socio_pf('60000005', filha, '49')
+        self.socio_pf('60000005', self.pessoas[18], '22')
+
     def prefeitura(self):
         self.empresa('30000001', 'MUNICIPIO DE EXEMPLO', '1244', '0,00', '05', '8411600',
                      municipio=MUNICIPIOS[2], fantasia='PREFEITURA', ente='EXEMPLO - RJ', simples=False)
@@ -293,6 +352,8 @@ class Gerador:
     def gera(self):
         self.grupo_alfa()
         self.grupo_bravo()
+        self.grupo_charlie()
+        self.grupo_delta()
         self.prefeitura()
         self.empresas_avulsas()
         return self

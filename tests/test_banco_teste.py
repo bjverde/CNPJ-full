@@ -50,7 +50,43 @@ def test_grafo_do_grupo_alfa():
         for basico in ['10000002', '10000003', '10000004', '10000005', '10000006']:
             assert gerar_banco_teste.cnpj_completo(basico) in G
         assert G.has_edge('GLOBAL ALFA INVESTMENTS LLC', HOLDING)
-        assert G.number_of_nodes() > 30
+    finally:
+        con.close()
+
+
+def nos_por_nivel(con, cnpj):
+    total = []
+    for nivel in (1, 2, 3):
+        rede = RedeCNPJ(con, nivel_max=nivel, qualificacoes=config.QUALIFICACOES)
+        rede.insere_pessoa(1, cnpj)
+        total.append(rede.G.number_of_nodes())
+    return total
+
+
+@pytest.mark.parametrize('cnpj, esperado', [
+    # Mesmos numeros da tabela de exemplos em docs/ambientes.md
+    ('10000001000190', [9, 11, 13]),
+    ('50000001000104', [4, 7, 9]),
+    ('50000004000148', [3, 4, 7]),
+    ('60000001000168', [4, 6, 8]),
+    ('20000001000143', [4, 5, 6]),
+    ('40000006000183', [4, 22, 32]),
+])
+def test_tamanho_dos_grafos_de_exemplo(cnpj, esperado):
+    con = sqlite3.connect(BANCO_TESTE)
+    try:
+        assert nos_por_nivel(con, cnpj) == esperado
+    finally:
+        con.close()
+
+
+def test_cadeia_charlie_chega_no_nivel_3():
+    con = sqlite3.connect(BANCO_TESTE)
+    try:
+        rede = RedeCNPJ(con, nivel_max=3, qualificacoes=config.QUALIFICACOES)
+        rede.insere_pessoa(1, '50000001000104')
+        logistica = gerar_banco_teste.cnpj_completo('50000004')
+        assert rede.G.nodes[logistica]['nivel'] == 3
     finally:
         con.close()
 
