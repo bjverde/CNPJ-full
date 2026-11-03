@@ -64,7 +64,7 @@ def nos_por_nivel(con, cnpj):
 
 
 @pytest.mark.parametrize('cnpj, esperado', [
-    # Mesmos numeros da tabela de exemplos em docs/ambientes.md
+    # Mesmos numeros da tabela de exemplos em dados_teste/README.md
     ('10000001000190', [9, 11, 13]),
     ('50000001000104', [4, 7, 9]),
     ('50000004000148', [3, 4, 7]),

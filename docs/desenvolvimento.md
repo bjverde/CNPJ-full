@@ -16,18 +16,10 @@ cnpj_full/              Código Python
   viz/LICENSE-d3.txt    Licença do d3.js (ISC)
   extra_csv/            Scripts para separar o estabelecimento.csv por UF ou município
 dados_teste/            Banco de teste versionado (dados fictícios)
+  README.md             O que tem no banco de teste e consultas de exemplo
   cnpj_teste.db         Banco SQLite pequeno, padrão das consultas sem --base
   gerar_banco_teste.py  Gera os ZIPs no formato da RF e recria o cnpj_teste.db
-docs/                   Documentação
-  ambientes.md          Instalação e teste no Windows, Linux e Docker; .env
-  cache.md              Exemplos do cache do grafo (--cache)
-  download.md           Download dos arquivos da RF
-  carga.md              Arquivos da RF e carga (SQLite/CSV)
-  postgresql.md         Carga no PostgreSQL
-  consultas.md          Consultas, grafo e CPF/LGPD
-  desenvolvimento.md    Estrutura, testes e roteiro
-  cnpj-metadados.pdf    Dicionário de dados da Receita Federal
-  img/                  Imagens da documentação
+docs/                   Documentação (índice no README) e imagens
 tests/                  Testes automáticos (pytest) e amostra sintética
 .github/workflows/      GitHub Actions (testes em Ubuntu, Windows e Docker a cada PR)
 Dockerfile              Imagem com Python e bibliotecas (o código entra pelo volume)
@@ -35,7 +27,7 @@ docker-compose.yml      Serviço cnpj-full com a pasta do projeto montada em /ap
 .env.example            Exemplo do .env (caminho do banco e outras configurações)
 ```
 
-Os scripts podem ser rodados de qualquer pasta, como arquivo (`python3 cnpj_full/carga.py ...`) ou como módulo a partir da raiz do projeto (`python3 -m cnpj_full.carga ...`).
+Os scripts podem ser rodados de qualquer pasta, como arquivo (`python cnpj_full/carga.py ...`) ou como módulo a partir da raiz do projeto (`python -m cnpj_full.carga ...`).
 
 # Testes
 
@@ -43,7 +35,7 @@ Os testes usam uma amostra sintética no formato oficial da RF (`tests/amostra.p
 
 ```bash
 pip install pytest
-python3 -m pytest tests
+python -m pytest tests
 ```
 
 Se mudar o `dados_teste/gerar_banco_teste.py` (ou a carga), recrie o banco de teste com `python dados_teste/gerar_banco_teste.py` e faça commit do `dados_teste/cnpj_teste.db`; o teste `test_banco_versionado_igual_ao_gerador` falha se os dois ficarem diferentes.
@@ -52,15 +44,15 @@ Os testes do PostgreSQL (`tests/test_postgres.py`) só rodam se houver um Postgr
 
 ```bash
 docker run -d --name pg-teste -e POSTGRES_PASSWORD=teste -e POSTGRES_DB=cnpj_teste -p 5432:5432 postgres:16
-CNPJ_TESTE_PG_HOST=localhost CNPJ_TESTE_PG_SENHA=teste python3 -m pytest tests
+CNPJ_TESTE_PG_HOST=localhost CNPJ_TESTE_PG_SENHA=teste python -m pytest tests
 ```
 
 Para gerar só a amostra (útil para experimentar sem baixar os arquivos da RF):
 
 ```bash
-python3 tests/amostra.py amostra
-python3 cnpj_full/carga.py amostra sqlite saida_amostra --dir
-python3 cnpj_full/consulta.py cnpj 11111111000272 resultado --base saida_amostra/CNPJ_full.db --viz
+python tests/amostra.py amostra
+python cnpj_full/carga.py amostra sqlite saida_amostra --dir
+python cnpj_full/consulta.py cnpj 11111111000272 resultado --base saida_amostra/CNPJ_full.db --viz
 ```
 
 # Roteiro

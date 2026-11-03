@@ -7,7 +7,7 @@ Como o `--cache` do `consulta.py` funciona na prática e como os arquivos ficam 
 ## 1. Primeira consulta: vai ao banco e grava o cache
 
 ```bash
-python3 cnpj_full/consulta.py cnpj 11111111000272 graficos/11111111000272_n3 --nivel 3 --viz --cache
+python cnpj_full/consulta.py cnpj 11111111000272 graficos/11111111000272_n3 --nivel 3 --viz --cache
 ```
 ```
 Consulta finalizada. Verifique o(s) arquivo(s) de saida na pasta "graficos/11111111000272_n3".
@@ -43,7 +43,7 @@ O `cache.json` (lista de qualificações resumida):
 ## 2. Mesma consulta de novo: não toca no banco
 
 ```bash
-python3 cnpj_full/consulta.py cnpj 11.111.111/0002-72 graficos/11111111000272_n3 --nivel 3 --viz --cache
+python cnpj_full/consulta.py cnpj 11.111.111/0002-72 graficos/11111111000272_n3 --nivel 3 --viz --cache
 ```
 ```
 Resultado reaproveitado do cache na pasta "graficos/11111111000272_n3".
@@ -53,8 +53,8 @@ O CNPJ com máscara conta como a mesma consulta. O `grafo.html` continua o mesmo
 ## 3. Outro nível ou outra pessoa: outra pasta, outro cache
 
 ```bash
-python3 cnpj_full/consulta.py cnpj 11111111000272 graficos/11111111000272_n1 --nivel 1 --viz --cache
-python3 cnpj_full/consulta.py nome_socio "maria souza" graficos/socio_MARIA_SOUZA_n3 --nivel 3 --viz --csv --cache
+python cnpj_full/consulta.py cnpj 11111111000272 graficos/11111111000272_n1 --nivel 1 --viz --cache
+python cnpj_full/consulta.py nome_socio "maria souza" graficos/socio_MARIA_SOUZA_n3 --nivel 3 --viz --csv --cache
 ```
 No disco:
 ```
@@ -78,9 +78,9 @@ Cada pasta guarda **uma** consulta. Quem chama escolhe o nome da pasta, por exem
 Depois da carga nova, a `controle_carga` muda (no exemplo, o fim passou a ser `2027-02-15 03:10:00`):
 
 ```bash
-python3 cnpj_full/consulta.py cnpj 11111111000272 graficos/11111111000272_n3 --nivel 3 --viz --cache
+python cnpj_full/consulta.py cnpj 11111111000272 graficos/11111111000272_n3 --nivel 3 --viz --cache
 # Consulta finalizada ...           <- base mudou: refaz e regrava o cache
-python3 cnpj_full/consulta.py cnpj 11111111000272 graficos/11111111000272_n3 --nivel 3 --viz --cache
+python cnpj_full/consulta.py cnpj 11111111000272 graficos/11111111000272_n3 --nivel 3 --viz --cache
 # Resultado reaproveitado do cache  <- vale de novo, agora para a base nova
 ```
 O `cache.json` passa a ter `"base": "carga:13:2027-02-15 03:10:00"`. O cache não tem prazo em dias: ele vale até a próxima carga, seja ela mensal ou trimestral.
@@ -90,9 +90,9 @@ O `cache.json` passa a ter `"base": "carga:13:2027-02-15 03:10:00"`. O cache nã
 O item é o CPF seguido do nome, sem espaço. O CPF pode ir completo ou já mascarado, e o nome em maiúsculas ou minúsculas.
 
 ```bash
-python3 cnpj_full/consulta.py cpf_nome "11165432100MARIA SOUZA" graficos/cpf_654321_MARIA_SOUZA_n3 --nivel 3 --viz --cache
+python cnpj_full/consulta.py cpf_nome "11165432100MARIA SOUZA" graficos/cpf_654321_MARIA_SOUZA_n3 --nivel 3 --viz --cache
 # Consulta finalizada ...
-python3 cnpj_full/consulta.py cpf_nome "***654321**maria souza" graficos/cpf_654321_MARIA_SOUZA_n3 --nivel 3 --viz --cache
+python cnpj_full/consulta.py cpf_nome "***654321**maria souza" graficos/cpf_654321_MARIA_SOUZA_n3 --nivel 3 --viz --cache
 # Resultado reaproveitado do cache ...
 ```
 
@@ -135,6 +135,6 @@ Para forçar uma consulta nova: apagar o `cache.json` (ou a pasta) ou rodar sem 
 
 A tela chamaria, por exemplo:
 ```
-python3 cnpj_full/consulta.py cnpj 11111111000272 graficos/11111111000272_n3 --nivel 3 --viz --cache
+python cnpj_full/consulta.py cnpj 11111111000272 graficos/11111111000272_n3 --nivel 3 --viz --cache
 ```
 e mostraria `graficos/11111111000272_n3/grafo.html` no iframe, como já faz hoje. Depois de uma carga nova, as pastas antigas continuam no disco até serem pedidas de novo (aí são refeitas). Se o espaço pesar, basta apagar `graficos/` junto com a carga.
