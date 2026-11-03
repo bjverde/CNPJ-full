@@ -10,7 +10,7 @@ Como funciona a rede no layout novo:
 * Os nós são de três tipos: `1` pessoa jurídica (id = CNPJ de 14 dígitos), `2` pessoa física e `3` estrangeiro (id = CPF mascarado + nome).
 
 ```
-python3 cnpj_full/consulta.py <tipo consulta> <item|arquivo input> <pasta saída> [--base <arquivo sqlite>]
+python cnpj_full/consulta.py <tipo consulta> <item|arquivo input> <pasta saída> [--base <arquivo sqlite>]
                     [--nivel <int>] [--csv] [--graphml] [--gexf] [--viz] [--conexoes <arquivo>] [--cache]
 ```
 
@@ -28,7 +28,7 @@ Tipo | Busca
 
 Argumento | Descrição
 --------- | ---------
-`--base` | Arquivo SQLite. Se omitido, usa `CNPJ_DB_ARQUIVO` do `.env` e, sem ele, o banco de teste `dados_teste/cnpj_teste.db` (veja [o arquivo .env](ambientes.md#arquivo-env-onde-fica-o-banco))
+`--base` | Arquivo SQLite. Se omitido, usa `CNPJ_DB_ARQUIVO` do `.env` e, sem ele, o banco de teste `dados_teste/cnpj_teste.db` (veja [qual banco a consulta usa](ambientes.md#qual-banco-a-consulta-usa))
 `--nivel` | Profundidade em "pulos". `--nivel 1` traz o item e os diretamente relacionados. Se omitido, usa `NIVEL_MAX_DEFAULT`
 `--csv` | Gera `pessoas.csv` e `vinculos.csv` (padrão se nenhuma saída for escolhida)
 `--graphml` | Gera `rede.graphml`
@@ -40,11 +40,11 @@ Argumento | Descrição
 Exemplos:
 
 ```bash
-python3 cnpj_full/consulta.py cnpj 00000000000191 resultado --nivel 1 --viz
-python3 cnpj_full/consulta.py file entrada.csv resultado --csv --gexf
-python3 cnpj_full/consulta.py nome_socio "FULANO DE TAL" resultado --graphml --viz
-python3 cnpj_full/consulta.py cnpj 00000000000191 resultado --nivel 3 --conexoes pares.csv
-python3 cnpj_full/consulta.py cnpj 00000000000191 graficos/00000000000191_n3 --nivel 3 --viz --cache
+python cnpj_full/consulta.py cnpj 00000000000191 resultado --nivel 1 --viz
+python cnpj_full/consulta.py file entrada.csv resultado --csv --gexf
+python cnpj_full/consulta.py nome_socio "FULANO DE TAL" resultado --graphml --viz
+python cnpj_full/consulta.py cnpj 00000000000191 resultado --nivel 3 --conexoes pares.csv
+python cnpj_full/consulta.py cnpj 00000000000191 graficos/00000000000191_n3 --nivel 3 --viz --cache
 ```
 
 **Atenção:** use a profundidade com moderação. Dependendo das empresas ou pessoas, a quantidade de relacionados cresce exponencialmente e gera muitas consultas no banco. Nível 3 é um bom parâmetro.
@@ -82,7 +82,7 @@ Exemplos passo a passo, com o conteúdo do `cache.json` e as pastas geradas, em 
 
 Variável | Descrição
 -------- | ---------
-`PATH_BD` | Banco SQLite padrão (pode ser trocado com `--base`). Vem de `CNPJ_DB_ARQUIVO` no `.env`, relativo à raiz do projeto; sem ele, `dados_teste/cnpj_teste.db`
+`PATH_BD` | Banco SQLite padrão (pode ser trocado com `--base`). Vem de `CNPJ_DB_ARQUIVO` no `.env` ([qual banco a consulta usa](ambientes.md#qual-banco-a-consulta-usa))
 `NIVEL_MAX_DEFAULT` | Profundidade padrão (pode ser trocada com `--nivel`)
 `PATH_NAVEGADOR` | Caminho do navegador para abrir o `grafo.html` automaticamente. Vem de `CNPJ_NAVEGADOR` no `.env`. Vazio só gera o arquivo
 `SEP_CSV` | Separador dos CSVs de saída e do arquivo de entrada do tipo `file`

@@ -5,16 +5,16 @@
 Além de SQLite e CSV, o `carga.py` grava direto no PostgreSQL:
 
 ```bash
-python3 cnpj_full/carga.py dados/2026-10 postgres --dir                # carga completa + chaves e índices
-python3 cnpj_full/carga.py dados/2026-10 postgres --dir --noindex      # sem chaves e índices no fim
-python3 cnpj_full/carga.py dados/2026-10 postgres --dir --continuar    # retoma uma carga interrompida
+python cnpj_full/carga.py dados/2026-10 postgres --dir                # carga completa + chaves e índices
+python cnpj_full/carga.py dados/2026-10 postgres --dir --noindex      # sem chaves e índices no fim
+python cnpj_full/carga.py dados/2026-10 postgres --dir --continuar    # retoma uma carga interrompida
 ```
 
 Não há `<pasta saída>`: a conexão vem do `.env` (ou de variáveis de ambiente).
 
 ## Configuração (.env)
 
-Copie o `.env.example` para `.env` na raiz do projeto, comente o exemplo do SQLite, tire o `#` do exemplo do PostgreSQL e ajuste:
+No [`.env`](ambientes.md#arquivo-env), comente o bloco do SQLite, tire o `#` do bloco do PostgreSQL e ajuste:
 
 Variável | Descrição | Padrão
 -------- | --------- | ------
@@ -25,7 +25,7 @@ Variável | Descrição | Padrão
 `CNPJ_DB_SENHA` | Senha | vazio
 `CNPJ_DB_SCHEMA` | Schema das tabelas (criado se não existir) | `dados_rfb`
 
-Variáveis já definidas no ambiente (ex: `environment:` do docker-compose, `export` no Linux, `set` no Windows) têm prioridade sobre o `.env`. Para usar um `.env` em outro lugar, informe o caminho em `CNPJ_ENV`.
+Para usar um `.env` em outro lugar, informe o caminho em `CNPJ_ENV`.
 
 Driver: `psycopg` 3 (já está no `requirements.txt` como `psycopg[binary]`, com binários para Windows, Linux e macOS; não precisa instalar o cliente do PostgreSQL).
 

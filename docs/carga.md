@@ -1,16 +1,8 @@
 [← Voltar ao README](../README.md)
 
-# Baixando os arquivos da Receita
+# Arquivos da Receita
 
-A RF publica os dados em um compartilhamento público (`https://arquivos.receitafederal.gov.br/index.php/s/YggdBLfdninEJX9`), com uma pasta por competência (ex: `2026-10/`). O acesso também está no [portal dados.gov.br](https://dados.gov.br/dados/conjuntos-dados/cadastro-nacional-da-pessoa-juridica---cnpj).
-
-O jeito mais fácil é usar o script de download, que entra na competência mais recente e baixa tudo para `dados/AAAA-MM/` (detalhes em [Download](download.md)):
-
-```bash
-python3 cnpj_full/download.py
-```
-
-Se preferir baixar à mão, baixe **todos os ZIPs da mesma competência** para uma pasta dedicada, sem renomear e sem descompactar:
+O jeito mais fácil de obter os arquivos é o [script de download](download.md). Se preferir baixar à mão (do compartilhamento da RF ou do [portal dados.gov.br](https://dados.gov.br/dados/conjuntos-dados/cadastro-nacional-da-pessoa-juridica---cnpj)), baixe **todos os ZIPs da mesma competência** para uma pasta dedicada, sem renomear e sem descompactar:
 
 Arquivos | Tabela gerada | Conteúdo
 -------- | ------------- | --------
@@ -27,8 +19,8 @@ São dezenas de GB descomprimidos, então reserve espaço em disco para os ZIPs 
 # Carga: conversão para SQLite ou CSV
 
 ```
-python3 cnpj_full/carga.py <caminho entrada> <sqlite|csv> <pasta saída> [--dir] [--noindex] [--seguro] [--continuar]
-python3 cnpj_full/carga.py <caminho entrada> postgres [--dir] [--noindex] [--continuar]
+python cnpj_full/carga.py <caminho entrada> <sqlite|csv> <pasta saída> [--dir] [--noindex] [--seguro] [--continuar]
+python cnpj_full/carga.py <caminho entrada> postgres [--dir] [--noindex] [--continuar]
 ```
 
 Rodando `python cnpj_full/carga.py` sem argumentos (ou com `--help`) aparece a ajuda com para que serve, os argumentos e exemplos. O nome antigo `cnpj.py` ainda funciona, mas mostra um aviso para usar o `carga.py`.
@@ -48,11 +40,11 @@ Argumento | Descrição
 Exemplos:
 
 ```bash
-python3 cnpj_full/carga.py dados sqlite saida --dir
-python3 cnpj_full/carga.py dados csv saida --dir
-python3 cnpj_full/carga.py dados/Empresas0.zip sqlite saida --noindex
-python3 cnpj_full/carga.py dados sqlite saida --dir --seguro
-python3 cnpj_full/carga.py dados sqlite saida --dir --seguro --continuar
+python cnpj_full/carga.py dados sqlite saida --dir
+python cnpj_full/carga.py dados csv saida --dir
+python cnpj_full/carga.py dados/Empresas0.zip sqlite saida --noindex
+python cnpj_full/carga.py dados sqlite saida --dir --seguro
+python cnpj_full/carga.py dados sqlite saida --dir --seguro --continuar
 ```
 
 O script mostra no terminal o progresso de cada arquivo, em blocos de 200.000 linhas, e no fim um resumo da verificação das quantidades. A carga completa leva horas, dependendo do disco e do processador.
@@ -83,7 +75,7 @@ Use o modo rápido quando a máquina for estável e você puder simplesmente rod
 
 ### Retomando uma carga interrompida
 
-`python3 cnpj_full/carga.py PASTA_COM_ZIPS sqlite PASTA_DE_SAIDA --dir --seguro --continuar`
+`python cnpj_full/carga.py PASTA_COM_ZIPS sqlite PASTA_DE_SAIDA --dir --seguro --continuar`
 
 Com `--continuar`, o script não recria as tabelas e pula os arquivos já concluídos na `controle_carga`. O arquivo que estava sendo gravado na interrupção é carregado de novo desde o início.
 
@@ -131,7 +123,7 @@ Depois de gerar o `estabelecimento.csv` (saída `csv`), é possível dividi-lo p
 2. Rode os scripts:
 
    ```bash
-   python3 cnpj_full/extra_csv/separar_csv_por_uf.py       # gera UFs/<UF>.csv
-   python3 cnpj_full/extra_csv/separar_csv_por_cidade.py   # gera UFs/<UF>/<codigo_municipio>.csv
+   python cnpj_full/extra_csv/separar_csv_por_uf.py       # gera UFs/<UF>.csv
+   python cnpj_full/extra_csv/separar_csv_por_cidade.py   # gera UFs/<UF>/<codigo_municipio>.csv
    ```
 

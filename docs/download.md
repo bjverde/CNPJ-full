@@ -5,12 +5,12 @@
 O script `cnpj_full/download.py` baixa os dados abertos do CNPJ direto do servidor da Receita Federal (RF), sem precisar abrir o navegador.
 
 ```bash
-python3 cnpj_full/download.py                         # competência mais recente, para dados/AAAA-MM/
-python3 cnpj_full/download.py --listar                # só mostra a competência e os arquivos
-python3 cnpj_full/download.py --competencia 2026-09   # uma competência específica
-python3 cnpj_full/download.py --destino D:\cnpj       # outra pasta de destino (Windows)
-python3 cnpj_full/download.py --filtro "Cnaes|Paises" # só alguns arquivos (expressão regular)
-python3 cnpj_full/download.py https://outro.servidor/index.php/s/TOKEN   # outra URL
+python cnpj_full/download.py                         # competência mais recente, para dados/AAAA-MM/
+python cnpj_full/download.py --listar                # só mostra a competência e os arquivos
+python cnpj_full/download.py --competencia 2026-09   # uma competência específica
+python cnpj_full/download.py --destino D:\cnpj       # outra pasta de destino (Windows)
+python cnpj_full/download.py --filtro "Cnaes|Paises" # só alguns arquivos (expressão regular)
+python cnpj_full/download.py https://outro.servidor/index.php/s/TOKEN   # outra URL
 ```
 
 Para ver a ajuda com todos os argumentos: `python cnpj_full/download.py --help`. Sem argumentos o script não mostra a ajuda: ele já baixa a competência mais recente com as configurações padrão.
@@ -48,12 +48,7 @@ São cerca de 7 GB compactados por competência. Reserve espaço para os ZIPs e 
 
 ## Depois do download
 
-O script mostra no fim o comando de carga, por exemplo:
-
-```bash
-python3 cnpj_full/carga.py dados/2026-10 sqlite saida --dir      # SQLite
-python3 cnpj_full/carga.py dados/2026-10 postgres --dir           # PostgreSQL (docs/postgresql.md)
-```
+O script mostra no fim o comando de carga para a competência baixada. A carga está em [Carga](carga.md) (SQLite/CSV) e [Carga no PostgreSQL](postgresql.md).
 
 ## Proxy
 
