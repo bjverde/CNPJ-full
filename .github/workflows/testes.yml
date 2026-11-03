@@ -7,7 +7,8 @@ on:
 
 jobs:
   testes:
-    runs-on: ubuntu-latest
+    # ubuntu-latest (26.04) nao tem mais o Python 3.9 no setup-python
+    runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
       matrix:
