@@ -14,7 +14,7 @@ Não há `<pasta saída>`: a conexão vem do `.env` (ou de variáveis de ambient
 
 ## Configuração (.env)
 
-No [`.env`](ambientes.md#arquivo-env), comente o bloco do SQLite, tire o `#` do bloco do PostgreSQL e ajuste:
+No [`.env`](ambientes.md#arquivo-env), tire o `#` do bloco do PostgreSQL e ajuste. A linha `CNPJ_DB_ARQUIVO` do SQLite pode continuar: ela é das consultas, que por enquanto só leem SQLite.
 
 Variável | Descrição | Padrão
 -------- | --------- | ------
