@@ -4,11 +4,18 @@ __pycache__/
 .pytest_cache/
 .venv/
 
-# Dados e saidas locais (o banco de teste dados_teste/cnpj_teste.db e versionado)
+# Pastas geradas pelo programa (docs/desenvolvimento.md#pastas-geradas).
+# O banco de teste dados_teste/cnpj_teste.db e versionado.
 /dados/
-/dados_zips/
 /saida/
 /resultado/
 /graficos/
+# Nomes usados por versoes antigas do roteiro de teste
+/dados_zips/
+/resultado2/
+/saida_teste/
+/saida_carga/
+/saida_amostra/
+/amostra/
 *.db-journal
 *.part

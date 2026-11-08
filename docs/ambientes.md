@@ -146,11 +146,11 @@ O teste usa o [banco de teste](#banco-de-teste), com dados fictícios, que é o 
 python cnpj_full/consulta.py cnpj 10000001000190 resultado --nivel 3 --viz --csv
 
 # 2. Carga: gera ZIPs de teste no formato da RF e carrega com o carga.py
-python dados_teste/gerar_banco_teste.py --saida saida_teste/cnpj_teste.db --zips dados_zips
-python cnpj_full/carga.py dados_zips sqlite saida_carga --dir
+python dados_teste/gerar_banco_teste.py --saida saida/teste/cnpj_teste.db --zips saida/teste/zips
+python cnpj_full/carga.py saida/teste/zips sqlite saida/teste/carga --dir
 
 # 3. Consulta na base recém-carregada
-python cnpj_full/consulta.py cnpj 20000001000143 resultado2 --base saida_carga/CNPJ_full.db --viz
+python cnpj_full/consulta.py cnpj 20000001000143 saida/teste/resultado --base saida/teste/carga/CNPJ_full.db --viz
 ```
 
 Para abrir o grafo: `start resultado\grafo.html` (Windows), `xdg-open resultado/grafo.html` (Linux) ou abra o arquivo no navegador.
@@ -164,7 +164,7 @@ O que conferir:
 
 Outros CNPJs de exemplo, com o tamanho do grafo em cada nível, estão em [consultas de exemplo](#consultas-de-exemplo). Os testes automáticos rodam estes mesmos comandos a cada PR ([Desenvolvimento](desenvolvimento.md#testes)).
 
-Para limpar: apague as pastas `resultado`, `resultado2`, `saida_teste`, `saida_carga` e `dados_zips`.
+Os passos 2 e 3 gravam tudo em `saida/teste/`. Para limpar, apague as pastas `resultado` e `saida/teste`. Todas as pastas que o programa cria ficam fora do git ([pastas geradas](desenvolvimento.md#pastas-geradas)).
 
 ## Banco de teste
 
@@ -196,7 +196,7 @@ O banco é gerado pelo [`dados_teste/gerar_banco_teste.py`](../dados_teste/gerar
 
 ```bash
 python dados_teste/gerar_banco_teste.py                       # recria dados_teste/cnpj_teste.db
-python dados_teste/gerar_banco_teste.py --zips dados_zips     # guarda também os ZIPs (para testar a carga)
+python dados_teste/gerar_banco_teste.py --zips saida/teste/zips   # guarda também os ZIPs (para testar a carga)
 ```
 
 ---

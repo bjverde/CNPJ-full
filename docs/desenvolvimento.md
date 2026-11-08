@@ -26,6 +26,19 @@ docker-compose.yml      Serviço cnpj-full com a pasta do projeto montada em /ap
 .env.example            Exemplo do .env (caminho do banco e outras configurações)
 ```
 
+## Pastas geradas
+
+O programa só cria arquivos nestas pastas, todas no `.gitignore`. Qualquer outra pasta na raiz que não esteja na lista acima é sobra de teste e pode ser apagada.
+
+```
+.venv/                  Ambiente virtual do Python (instalação)
+dados/                  ZIPs baixados da RF, um subpasta por competência (dados/AAAA-MM/)
+saida/                  Bancos e arquivos gerados pela carga (ex.: saida/CNPJ_full.db)
+  teste/                Roteiro de teste e amostra: ZIPs, carga e resultado de teste
+resultado/              Saída das consultas de exemplo (grafo.html, pessoas.csv, vinculos.csv)
+graficos/               Consultas com --cache, uma pasta por consulta (usada pelo cnpjrfb)
+```
+
 Os scripts podem ser rodados de qualquer pasta, como arquivo (`python cnpj_full/carga.py ...`) ou como módulo a partir da raiz do projeto (`python -m cnpj_full.carga ...`).
 
 # Testes
@@ -49,9 +62,9 @@ CNPJ_TESTE_PG_HOST=localhost CNPJ_TESTE_PG_SENHA=teste python -m pytest tests
 Para gerar só a amostra (útil para experimentar sem baixar os arquivos da RF):
 
 ```bash
-python tests/amostra.py amostra
-python cnpj_full/carga.py amostra sqlite saida_amostra --dir
-python cnpj_full/consulta.py cnpj 11111111000272 resultado --base saida_amostra/CNPJ_full.db --viz
+python tests/amostra.py saida/teste/amostra
+python cnpj_full/carga.py saida/teste/amostra sqlite saida/teste/carga_amostra --dir
+python cnpj_full/consulta.py cnpj 11111111000272 resultado --base saida/teste/carga_amostra/CNPJ_full.db --viz
 ```
 
 # Roteiro
