@@ -1,6 +1,6 @@
 # -*- encoding: utf-8 -*-
 '''
-Gera o banco de teste do CNPJ-full (dados_teste/cnpj_teste.db).
+Gera o banco de teste do CNPJ-full (dados/teste/cnpj_teste.db).
 
 Todos os dados sao FICTICIOS: nomes de empresas e pessoas sao inventados e os
 CPFs seguem o formato mascarado da RF (***999999**). So as tabelas de dominio
@@ -16,9 +16,9 @@ O script:
 A geracao e deterministica (semente fixa): rodar de novo gera os mesmos dados.
 
 Uso (a partir de qualquer pasta):
-    python dados_teste/gerar_banco_teste.py                  # recria dados_teste/cnpj_teste.db
-    python dados_teste/gerar_banco_teste.py --zips pasta     # tambem guarda os ZIPs em "pasta"
-    python dados_teste/gerar_banco_teste.py --saida outro.db # grava em outro arquivo
+    python dados/teste/gerar_banco_teste.py                  # recria dados/teste/cnpj_teste.db
+    python dados/teste/gerar_banco_teste.py --zips pasta     # tambem guarda os ZIPs em "pasta"
+    python dados/teste/gerar_banco_teste.py --saida outro.db # grava em outro arquivo
 
 Empresas para testar o grafo (CNPJ da matriz):
     10000001000190  ALFA HOLDING PARTICIPACOES S.A.  (grupo com controladas, socio estrangeiro e filiais)
@@ -34,7 +34,7 @@ import tempfile
 import zipfile
 
 PASTA = os.path.dirname(os.path.abspath(__file__))
-RAIZ = os.path.dirname(PASTA)
+RAIZ = os.path.dirname(os.path.dirname(PASTA))  # dados/teste -> raiz do projeto
 sys.path.insert(0, RAIZ)
 
 from cnpj_full import carga  # noqa: E402

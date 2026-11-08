@@ -23,7 +23,7 @@ def caminho_projeto(caminho):
 
 # Banco SQLite usado pelo consulta.py quando --base nao e informado.
 # Ordem: --base na linha de comando > CNPJ_DB_ARQUIVO (ambiente ou .env) > banco de teste.
-BANCO_TESTE = 'dados_teste/cnpj_teste.db'
+BANCO_TESTE = 'dados/teste/cnpj_teste.db'
 PATH_BD = caminho_projeto(os.getenv('CNPJ_DB_ARQUIVO') or BANCO_TESTE)
 NIVEL_MAX_DEFAULT = 3
 

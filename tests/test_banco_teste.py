@@ -1,4 +1,4 @@
-'''Banco de teste versionado (dados_teste/cnpj_teste.db) e configuracao pelo .env.'''
+'''Banco de teste versionado (dados/teste/cnpj_teste.db) e configuracao pelo .env.'''
 import importlib
 import os
 import sqlite3
@@ -11,10 +11,10 @@ from conftest import RAIZ
 from cnpj_full import config, consulta
 from cnpj_full.rede_cnpj import RedeCNPJ
 
-sys.path.insert(0, os.path.join(RAIZ, 'dados_teste'))
+sys.path.insert(0, os.path.join(RAIZ, 'dados', 'teste'))
 import gerar_banco_teste  # noqa: E402
 
-BANCO_TESTE = os.path.join(RAIZ, 'dados_teste', 'cnpj_teste.db')
+BANCO_TESTE = os.path.join(RAIZ, 'dados', 'teste', 'cnpj_teste.db')
 HOLDING = '10000001000190'
 BRAVO = '20000001000143'
 TABELAS = ['empresa', 'estabelecimento', 'socios', 'simples',

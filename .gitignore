@@ -5,8 +5,11 @@ __pycache__/
 .venv/
 
 # Pastas geradas pelo programa (docs/desenvolvimento.md#pastas-geradas).
-# O banco de teste dados_teste/cnpj_teste.db e versionado.
-/dados/
+# Em dados/, so a pasta teste/ (banco de teste e gerador) e versionada.
+/dados/*
+!/dados/teste/
+/dados/teste/zips/
+/dados/teste/amostra/
 /saida/
 /resultado/
 /graficos/
