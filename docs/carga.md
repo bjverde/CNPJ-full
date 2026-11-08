@@ -112,13 +112,11 @@ Ao final da carga sqlite (a menos que se use `--noindex`), são criados índices
 
 Depois de gerar o `estabelecimento.csv` (saída `csv`), é possível dividi-lo por UF ou por município. O arquivo de cada cidade recebe o código do município da RF (veja a tabela `munic`).
 
-1. Crie um arquivo `.env` (há um exemplo em `.env.example`) com a pasta onde está o `estabelecimento.csv`, **terminando com `/`**:
+1. Se o `estabelecimento.csv` não estiver em `saida/` (o padrão), informe a pasta no [`.env`](ambientes.md#arquivo-env), relativa à raiz do projeto ou absoluta:
 
    ```
-   FILES_LOCATION=/media/Arquivos/
+   FILES_LOCATION=/media/Arquivos
    ```
-
-   O `.env` pode ficar na raiz do projeto.
 
 2. Rode os scripts:
 

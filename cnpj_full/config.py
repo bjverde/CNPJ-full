@@ -8,7 +8,7 @@ ARQUIVO_ENV = os.path.join(RAIZ_PROJETO, '.env')
 try:
     from dotenv import load_dotenv
     # Variaveis ja definidas no ambiente (ex.: docker run -e) tem prioridade
-    load_dotenv(ARQUIVO_ENV)
+    load_dotenv(os.getenv('CNPJ_ENV') or ARQUIVO_ENV)
 except ImportError:  # python-dotenv e opcional para as consultas
     pass
 

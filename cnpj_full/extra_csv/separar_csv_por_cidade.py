@@ -2,7 +2,7 @@ import settings
 import csv, codecs, os
 from header_dict import get_header_index
 
-location = os.getenv('FILES_LOCATION')
+location = settings.LOCATION
 
 file = 'estabelecimento.csv'
 

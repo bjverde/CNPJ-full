@@ -264,17 +264,21 @@ copy .env.example .env               # Windows (cmd)
 Copy-Item .env.example .env          # Windows (PowerShell)
 ```
 
-O [`.env.example`](../.env.example) traz todas as variáveis, comentadas, e um bloco para cada tipo de banco (SQLite, PostgreSQL, MySQL/MariaDB, SQL Server e Oracle). Deixe ativo só um bloco. Hoje a carga funciona em SQLite e PostgreSQL e as consultas só em SQLite; os outros blocos já mostram os nomes que serão usados. Variáveis já definidas no ambiente (ex.: `docker run -e`, `export`, `set`) têm prioridade sobre o `.env`.
+Sem `.env` tudo funciona com os padrões: as consultas usam o banco de teste e o download grava em `dados/`. O [`.env.example`](../.env.example) traz todas as variáveis, comentadas, em três partes: **consultas** (`CNPJ_DB_ARQUIVO`, o SQLite das consultas), **carga em SGBD** (um bloco de conexão para cada banco; deixe sem `#` só um) e **download e outros**. Hoje a carga funciona em SQLite, CSV e PostgreSQL e as consultas só em SQLite; os blocos de MySQL/MariaDB, SQL Server e Oracle já mostram os nomes que serão usados.
+
+* Variáveis já definidas no ambiente (ex.: `docker run -e`, `export`, `set`) têm prioridade sobre o `.env`.
+* Caminhos relativos no `.env` partem da **raiz do projeto**, não da pasta onde você roda o comando.
+* Para usar um `.env` em outro lugar, defina `CNPJ_ENV=<caminho>` no ambiente.
 
 Variável | Para que serve | Detalhes
 -------- | -------------- | --------
-`CNPJ_DB_TIPO` | Tipo de banco (`sqlite`, `postgres`...) | este guia
+`CNPJ_DB_TIPO` | Reservado: ainda não é lido. O SGBD da carga vai na linha de comando (`carga.py ... postgres`) | 
 `CNPJ_DB_ARQUIVO` | Arquivo SQLite das consultas quando não se passa `--base` | abaixo
 `CNPJ_DB_HOST`, `CNPJ_DB_PORTA`, `CNPJ_DB_NOME`, `CNPJ_DB_USUARIO`, `CNPJ_DB_SENHA`, `CNPJ_DB_SCHEMA` | Conexão com o SGBD | [PostgreSQL](postgresql.md#configuração-env)
 `CNPJ_RF_URL`, `CNPJ_PASTA_DOWNLOAD` | Endereço da RF e pasta dos ZIPs | [Download](download.md)
 `CNPJ_NAVEGADOR` | Navegador aberto sozinho com o `grafo.html` (`--viz`). Vazio: só gera o arquivo | [Consultas](consultas.md#configuração-cnpj_fullconfigpy)
 `CNPJ_UID`, `CNPJ_GID` | Só Docker no Linux: usuário que roda o container | [Docker no Linux](#docker-no-linux)
-`FILES_LOCATION` | Só scripts `extra_csv`: pasta do `estabelecimento.csv`, terminando com `/` | [Carga](carga.md#separando-o-csv-por-uf-ou-município)
+`FILES_LOCATION` | Só scripts `extra_csv`: pasta do `estabelecimento.csv` (padrão `saida`) | [Carga](carga.md#separando-o-csv-por-uf-ou-município)
 
 ## Qual banco a consulta usa
 

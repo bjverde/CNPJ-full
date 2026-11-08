@@ -474,7 +474,7 @@ Documentacao: docs/download.md''',
     parser.add_argument('url', nargs='?', default=os.getenv('CNPJ_RF_URL') or URL_PADRAO,
                         help='URL do compartilhamento da RF (padrao: CNPJ_RF_URL do .env, '
                              'ou {})'.format(URL_PADRAO))
-    parser.add_argument('--destino', default=os.getenv('CNPJ_PASTA_DOWNLOAD') or PASTA_PADRAO,
+    parser.add_argument('--destino',
                         help='Pasta onde salvar; os arquivos vao para <destino>/<AAAA-MM>/ '
                              '(padrao: CNPJ_PASTA_DOWNLOAD do .env, ou "dados")')
     parser.add_argument('--competencia', metavar='AAAA-MM',
@@ -487,7 +487,11 @@ Documentacao: docs/download.md''',
 
     print('Inicio: {}'.format(datetime.datetime.now()))
     try:
-        baixa(args.url, args.destino, args.competencia, args.listar, args.filtro)
+        # --destino relativo parte da pasta atual; CNPJ_PASTA_DOWNLOAD e o padrao
+        # partem da raiz do projeto, como os outros caminhos do .env
+        destino = args.destino or os.path.join(
+            ambiente.RAIZ, os.path.expanduser(os.getenv('CNPJ_PASTA_DOWNLOAD') or PASTA_PADRAO))
+        baixa(args.url, destino, args.competencia, args.listar, args.filtro)
     except HTTPError as e:
         raise SystemExit(u'ERRO HTTP {} em {}'.format(e.code, e.url))
     except URLError as e:

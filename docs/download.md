@@ -18,7 +18,7 @@ Para ver a ajuda com todos os argumentos: `python cnpj_full/download.py --help`.
 Argumento | Descrição | Padrão
 --------- | --------- | ------
 `url` | Endereço do compartilhamento da RF | `CNPJ_RF_URL` do `.env`, ou `https://arquivos.receitafederal.gov.br/index.php/s/YggdBLfdninEJX9`
-`--destino` | Pasta onde salvar. Os arquivos vão para `<destino>/<AAAA-MM>/` | `CNPJ_PASTA_DOWNLOAD` do `.env`, ou `dados`
+`--destino` | Pasta onde salvar (relativa à pasta atual). Os arquivos vão para `<destino>/<AAAA-MM>/` | `CNPJ_PASTA_DOWNLOAD` do `.env`, ou `dados` (relativos à raiz do projeto)
 `--competencia AAAA-MM` | Baixa essa competência em vez da mais recente | a mais recente
 `--listar` | Mostra a competência escolhida e os arquivos com o tamanho, sem baixar |
 `--filtro REGEX` | Baixa só os arquivos cujo nome casa com a expressão (sem diferenciar maiúsculas) | todos

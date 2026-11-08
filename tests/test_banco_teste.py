@@ -138,3 +138,14 @@ def test_caminho_relativo_do_env_parte_da_raiz(config_recarregado, tmp_path, mon
 def test_caminho_absoluto_do_env(config_recarregado, tmp_path):
     caminho = str(tmp_path / 'base.db')
     assert config_recarregado(caminho).PATH_BD == caminho
+
+
+def test_cnpj_env_aponta_outro_env(config_recarregado, tmp_path, monkeypatch):
+    base = str(tmp_path / 'base.db')
+    env = tmp_path / 'outro.env'
+    env.write_text('CNPJ_DB_ARQUIVO={}\n'.format(base.replace('\\', '/')), encoding='utf-8')
+    monkeypatch.setenv('CNPJ_ENV', str(env))
+    # registra CNPJ_DB_ARQUIVO no monkeypatch para o valor lido do .env ser desfeito no fim
+    monkeypatch.setenv('CNPJ_DB_ARQUIVO', '')
+    cfg = config_recarregado(None)
+    assert os.path.normcase(os.path.normpath(cfg.PATH_BD)) == os.path.normcase(base)
