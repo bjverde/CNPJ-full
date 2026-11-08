@@ -28,7 +28,7 @@ Tipo | Busca
 
 Argumento | Descrição
 --------- | ---------
-`--base` | Arquivo SQLite. Se omitido, usa `CNPJ_DB_ARQUIVO` do `.env` e, sem ele, o banco de teste `dados_teste/cnpj_teste.db` (veja [qual banco a consulta usa](ambientes.md#qual-banco-a-consulta-usa))
+`--base` | Arquivo SQLite. Se omitido, usa `CNPJ_DB_ARQUIVO` do `.env` e, sem ele, o banco de teste `dados/teste/cnpj_teste.db` (veja [qual banco a consulta usa](ambientes.md#qual-banco-a-consulta-usa))
 `--nivel` | Profundidade em "pulos". `--nivel 1` traz o item e os diretamente relacionados. Se omitido, usa `NIVEL_MAX_DEFAULT`
 `--csv` | Gera `pessoas.csv` e `vinculos.csv` (padrão se nenhuma saída for escolhida)
 `--graphml` | Gera `rede.graphml`

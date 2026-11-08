@@ -15,7 +15,7 @@ cnpj_full/              Código Python
   viz/d3.v7.min.js      d3.js v7.9.0 embutido no grafo.html (funciona sem internet)
   viz/LICENSE-d3.txt    Licença do d3.js (ISC)
   extra_csv/            Scripts para separar o estabelecimento.csv por UF ou município
-dados_teste/            Banco de teste versionado (dados fictícios)
+dados/teste/            Banco de teste versionado (dados fictícios)
   cnpj_teste.db         Banco SQLite pequeno, padrão das consultas sem --base
   gerar_banco_teste.py  Gera os ZIPs no formato da RF e recria o cnpj_teste.db
 docs/                   Documentação (índice no README) e imagens
@@ -26,18 +26,35 @@ docker-compose.yml      Serviço cnpj-full com a pasta do projeto montada em /ap
 .env.example            Exemplo do .env (caminho do banco e outras configurações)
 ```
 
+## Pastas geradas
+
+Regra: **entrada em `dados/`, saída em `saida/`**. Fora `dados/teste/` (banco de teste e gerador), tudo o que está abaixo é criado pelo programa e fica no `.gitignore`. Qualquer outra pasta na raiz que não esteja nas listas desta página é sobra de teste e pode ser apagada.
+
+```
+.venv/                  Ambiente virtual do Python (instalação)
+dados/                  Entrada: arquivos da RF
+  AAAA-MM/              ZIPs baixados pelo download.py, um subpasta por competência
+  teste/                Banco de teste e gerador (versionados)
+    zips/               ZIPs de teste no formato da RF (gerar_banco_teste.py --zips)
+    amostra/            ZIPs da amostra sintética (tests/amostra.py)
+saida/                  Saída da carga: bancos e CSVs (ex.: saida/CNPJ_full.db)
+  teste/                Carga, banco e consulta do roteiro de teste
+resultado/              Saída das consultas de exemplo (grafo.html, pessoas.csv, vinculos.csv)
+graficos/               Consultas com --cache, uma pasta por consulta (usada pelo cnpjrfb)
+```
+
 Os scripts podem ser rodados de qualquer pasta, como arquivo (`python cnpj_full/carga.py ...`) ou como módulo a partir da raiz do projeto (`python -m cnpj_full.carga ...`).
 
 # Testes
 
-Os testes usam uma amostra sintética no formato oficial da RF (`tests/amostra.py`) e o banco de teste (`dados_teste/cnpj_teste.db`). Cobrem a carga, a verificação das quantidades, a retomada com `--continuar`, as consultas do grafo, a escolha do banco pelo `.env`, se o banco de teste versionado está igual ao que o gerador produz e o download (com um servidor local que imita o Nextcloud da RF, `tests/test_download.py`). Eles rodam no GitHub Actions a cada PR, em Ubuntu e Windows (Python 3.13, a versão mínima) e no Docker. Para rodar localmente:
+Os testes usam uma amostra sintética no formato oficial da RF (`tests/amostra.py`) e o banco de teste (`dados/teste/cnpj_teste.db`). Cobrem a carga, a verificação das quantidades, a retomada com `--continuar`, as consultas do grafo, a escolha do banco pelo `.env`, se o banco de teste versionado está igual ao que o gerador produz e o download (com um servidor local que imita o Nextcloud da RF, `tests/test_download.py`). Eles rodam no GitHub Actions a cada PR, em Ubuntu e Windows (Python 3.13, a versão mínima) e no Docker. Para rodar localmente:
 
 ```bash
 pip install pytest
 python -m pytest tests
 ```
 
-Se mudar o `dados_teste/gerar_banco_teste.py` (ou a carga), recrie o banco de teste com `python dados_teste/gerar_banco_teste.py` e faça commit do `dados_teste/cnpj_teste.db`; o teste `test_banco_versionado_igual_ao_gerador` falha se os dois ficarem diferentes.
+Se mudar o `dados/teste/gerar_banco_teste.py` (ou a carga), recrie o banco de teste com `python dados/teste/gerar_banco_teste.py` e faça commit do `dados/teste/cnpj_teste.db`; o teste `test_banco_versionado_igual_ao_gerador` falha se os dois ficarem diferentes.
 
 Os testes do PostgreSQL (`tests/test_postgres.py`) só rodam se houver um PostgreSQL de teste, informado em `CNPJ_TESTE_PG_HOST` (e, se preciso, `CNPJ_TESTE_PG_PORTA`, `CNPJ_TESTE_PG_USUARIO`, `CNPJ_TESTE_PG_SENHA`, `CNPJ_TESTE_PG_NOME`, padrão `cnpj_teste`). Sem isso são pulados. No GitHub Actions eles rodam com um container `postgres:16`. Localmente, com Docker:
 
@@ -49,9 +66,9 @@ CNPJ_TESTE_PG_HOST=localhost CNPJ_TESTE_PG_SENHA=teste python -m pytest tests
 Para gerar só a amostra (útil para experimentar sem baixar os arquivos da RF):
 
 ```bash
-python tests/amostra.py amostra
-python cnpj_full/carga.py amostra sqlite saida_amostra --dir
-python cnpj_full/consulta.py cnpj 11111111000272 resultado --base saida_amostra/CNPJ_full.db --viz
+python tests/amostra.py dados/teste/amostra
+python cnpj_full/carga.py dados/teste/amostra sqlite saida/teste/carga_amostra --dir
+python cnpj_full/consulta.py cnpj 11111111000272 resultado --base saida/teste/carga_amostra/CNPJ_full.db --viz
 ```
 
 # Roteiro

@@ -360,7 +360,7 @@ Argumentos opcionais:
   --base: Especifica o arquivo do banco de dados de CNPJ em formato sqlite.
            Caso nao seja especificado, usa CNPJ_DB_ARQUIVO (variavel de
            ambiente ou arquivo .env na raiz do projeto) e, sem ela, o banco
-           de teste dados_teste/cnpj_teste.db.
+           de teste dados/teste/cnpj_teste.db.
 
   --nivel: Especifica a profundidade da consulta em número de pulos.
             Ex: Caso seja especificado --nivel 1, busca o item e as

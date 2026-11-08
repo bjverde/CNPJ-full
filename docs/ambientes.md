@@ -146,11 +146,11 @@ O teste usa o [banco de teste](#banco-de-teste), com dados fictícios, que é o 
 python cnpj_full/consulta.py cnpj 10000001000190 resultado --nivel 3 --viz --csv
 
 # 2. Carga: gera ZIPs de teste no formato da RF e carrega com o carga.py
-python dados_teste/gerar_banco_teste.py --saida saida_teste/cnpj_teste.db --zips dados_zips
-python cnpj_full/carga.py dados_zips sqlite saida_carga --dir
+python dados/teste/gerar_banco_teste.py --saida saida/teste/cnpj_teste.db --zips dados/teste/zips
+python cnpj_full/carga.py dados/teste/zips sqlite saida/teste/carga --dir
 
 # 3. Consulta na base recém-carregada
-python cnpj_full/consulta.py cnpj 20000001000143 resultado2 --base saida_carga/CNPJ_full.db --viz
+python cnpj_full/consulta.py cnpj 20000001000143 saida/teste/resultado --base saida/teste/carga/CNPJ_full.db --viz
 ```
 
 Para abrir o grafo: `start resultado\grafo.html` (Windows), `xdg-open resultado/grafo.html` (Linux) ou abra o arquivo no navegador.
@@ -164,11 +164,11 @@ O que conferir:
 
 Outros CNPJs de exemplo, com o tamanho do grafo em cada nível, estão em [consultas de exemplo](#consultas-de-exemplo). Os testes automáticos rodam estes mesmos comandos a cada PR ([Desenvolvimento](desenvolvimento.md#testes)).
 
-Para limpar: apague as pastas `resultado`, `resultado2`, `saida_teste`, `saida_carga` e `dados_zips`.
+O passo 2 grava os ZIPs de teste em `dados/teste/zips/` e os passos 2 e 3 gravam o resto em `saida/teste/`. Para limpar, apague `resultado`, `saida/teste` e `dados/teste/zips`. Todas as pastas que o programa cria ficam fora do git ([pastas geradas](desenvolvimento.md#pastas-geradas)).
 
 ## Banco de teste
 
-O arquivo [`dados_teste/cnpj_teste.db`](../dados_teste) é um banco SQLite pequeno (cerca de 200 KB) com o mesmo modelo da base completa (o mesmo do [cnpjrfb](https://github.com/bjverde/cnpjrfb)). Ele é versionado no git, então funciona logo depois do `git clone`, e é o banco padrão do `consulta.py` quando não se informa `--base` nem `CNPJ_DB_ARQUIVO` no `.env` ([qual banco a consulta usa](#qual-banco-a-consulta-usa)).
+O arquivo [`dados/teste/cnpj_teste.db`](../dados/teste) é um banco SQLite pequeno (cerca de 200 KB) com o mesmo modelo da base completa (o mesmo do [cnpjrfb](https://github.com/bjverde/cnpjrfb)). Ele é versionado no git, então funciona logo depois do `git clone`, e é o banco padrão do `consulta.py` quando não se informa `--base` nem `CNPJ_DB_ARQUIVO` no `.env` ([qual banco a consulta usa](#qual-banco-a-consulta-usa)).
 
 **Todos os dados são fictícios**: nomes de empresas e pessoas são inventados e os CPFs seguem o formato mascarado da RF (`***123456**`). Só as tabelas de domínio (CNAEs, municípios, naturezas jurídicas, qualificações, países e motivos) usam códigos reais. Assim o banco pode ficar no repositório sem problema de LGPD.
 
@@ -192,11 +192,11 @@ Os testes automáticos (`tests/test_banco_teste.py`) conferem esses números.
 
 ### Recriando o banco
 
-O banco é gerado pelo [`dados_teste/gerar_banco_teste.py`](../dados_teste/gerar_banco_teste.py), que cria ZIPs no formato da RF e carrega com o próprio `cnpj_full/carga.py`. A geração é determinística: rodar de novo gera os mesmos dados. Os testes automáticos conferem que o `.db` versionado está igual ao que o script gera.
+O banco é gerado pelo [`dados/teste/gerar_banco_teste.py`](../dados/teste/gerar_banco_teste.py), que cria ZIPs no formato da RF e carrega com o próprio `cnpj_full/carga.py`. A geração é determinística: rodar de novo gera os mesmos dados. Os testes automáticos conferem que o `.db` versionado está igual ao que o script gera.
 
 ```bash
-python dados_teste/gerar_banco_teste.py                       # recria dados_teste/cnpj_teste.db
-python dados_teste/gerar_banco_teste.py --zips dados_zips     # guarda também os ZIPs (para testar a carga)
+python dados/teste/gerar_banco_teste.py                       # recria dados/teste/cnpj_teste.db
+python dados/teste/gerar_banco_teste.py --zips dados/teste/zips   # guarda também os ZIPs (para testar a carga)
 ```
 
 ---
@@ -282,7 +282,7 @@ Ordem | De onde vem | Caminho relativo é relativo a...
 ----- | ----------- | --------------------------------
 1 | `--base <arquivo>` na linha de comando | pasta onde você roda o comando
 2 | `CNPJ_DB_ARQUIVO` no ambiente ou no `.env` | **raiz do projeto**
-3 | Banco de teste `dados_teste/cnpj_teste.db` | raiz do projeto
+3 | Banco de teste `dados/teste/cnpj_teste.db` | raiz do projeto
 
 Cuidados com o caminho:
 
